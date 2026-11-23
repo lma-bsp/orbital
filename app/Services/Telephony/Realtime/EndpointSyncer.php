@@ -59,6 +59,14 @@ class EndpointSyncer
         // calls. Asterisk then treats softphones as ordinary SIP
         // endpoints reached through the edge (Path).
         $webrtcViaEdge = $isWebrtc && (bool) config('telephony.webrtc_via_edge', false);
+        // With the Kamailio edge in front, every phone's SIP reaches
+        // Asterisk through it, from an internal address. rewrite_contact
+        // would put that address into the Record-Route Kamailio added,
+        // so the phone sends its ACK and BYE somewhere it can't reach
+        // and the call drops. AI-agent endpoints talk to LiveKit
+        // directly, not through the edge.
+        $phoneViaEdge = $webrtcViaEdge
+            || (! $isAiAgent && (bool) config('telephony.kamailio.enabled', false));
         $context = $extension->team_id
             ? 'tenant_'.$extension->team_id
             : ($extension->context ?: 'default');
@@ -86,9 +94,10 @@ class EndpointSyncer
             'allow' => $isWebrtc ? 'opus,ulaw' : 'ulaw,alaw,g722,opus',
             'direct_media' => 'no',
             'force_rport' => 'yes',
-            // Via the edge the Contact must stay the browser's own: the
-            // edge maps it back to the WebSocket connection.
-            'rewrite_contact' => $webrtcViaEdge ? 'no' : 'yes',
+            // Via the edge the Contact must stay the phone's own (for a
+            // browser, the edge maps it back to the WebSocket
+            // connection), and so must the edge's Record-Route.
+            'rewrite_contact' => $phoneViaEdge ? 'no' : 'yes',
             'rtp_symmetric' => 'yes',
             'trust_id_inbound' => 'yes',
             'device_state_busy_at' => '1',

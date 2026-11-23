@@ -117,3 +117,18 @@ EDGE=1 ./k3d-build.sh # (re)deploy the cluster side with the edge overlay
 `edge-up.sh` discovers a k3d node IP, points Kamailio's dispatcher at the cluster's `asterisk-edge` NodePort, and self-signs a cert for the TLS/WSS listeners. If your softphone runs on Windows or another host (not inside WSL / the docker network), set `EDGE_RTP_ADVERTISE_IP` to a host-reachable address so rtpengine advertises the right media IP.
 
 Tear the edge down with `./edge-down.sh`. It's independent of the cluster — you can cycle the edge without touching the k3d deployment.
+
+### Calling in from a desktop SIP app
+
+For a softphone on another machine (MicroSIP, Linphone, Zoiper), give `edge-up.sh` the host's public address. rtpengine then offers that address to phones and its k3d address to Asterisk, and Kamailio advertises it in Via/Record-Route:
+
+```bash
+EDGE_RTP_ADVERTISE_IP=<public ip> ./edge-up.sh
+PUBLIC_IP=<public ip> ./microsip-test.sh open <your ip>   # firewall + a SIP-phone extension + app settings
+PUBLIC_IP=<public ip> ./microsip-test.sh status
+./microsip-test.sh close <your ip>
+```
+
+`microsip-test.sh` opens SIP and RTP to a single source IP in the `DOCKER-USER` chain, since `ufw allow` does not apply to Docker-published ports. Dial `*43` for an echo test, or an AI agent's extension to talk to it.
+
+The generated `edge/kamailio.cfg` defines `PIN_INDIALOG_TO_BACKEND` and `RTPENGINE_DIRECTIONS`. Asterisk's Contact and SDP carry its pod IP, which the off-cluster edge can't reach, so in-dialog requests go back through the dispatcher and rtpengine learns Asterisk's media address from the packets it sends.
