@@ -45,7 +45,9 @@ services:
         aliases: [kamailio]
     volumes:
       - ./dispatcher.list:/etc/kamailio/dispatcher.list
-      - ../../docker/kamailio/kamailio.cfg:/etc/kamailio/kamailio.cfg
+      # edge-up.sh swaps in a generated copy that advertises a public IP
+      # when EDGE_SIP_ADVERTISE_IP is set (softphone outside the host).
+      - ${KAMAILIO_CFG:-../../docker/kamailio/kamailio.cfg}:/etc/kamailio/kamailio.cfg
       - ../../docker/kamailio/tls.cfg:/etc/kamailio/tls.cfg
       - ./tls:/etc/tls:ro
     ports:
@@ -53,7 +55,10 @@ services:
       - "5060:5060/tcp"
       - "5061:5061/tcp"
       - "7443:7443/tcp"
-      - "8090:8090/tcp"        # JSON-RPC — cluster reaches via host.k3d.internal
+      # JSON-RPC — cluster reaches via host.k3d.internal. Override with
+      # EDGE_JSONRPC_PUBLISH (e.g. 127.0.0.1:18090) when 8090 is taken on
+      # the host; then point jsonrpcUrl at the container IP:8090 instead.
+      - "${EDGE_JSONRPC_PUBLISH:-8090}:8090/tcp"
     depends_on:
       - rtpengine-1
     restart: unless-stopped
