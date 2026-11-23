@@ -107,6 +107,37 @@ class SyncerTest extends TestCase
         $this->assertSame('yes', DB::table('ps_aors')->where('id', "t{$team->id}_301")->value('support_path'));
     }
 
+    public function test_sip_phones_keep_the_edge_record_route_behind_kamailio(): void
+    {
+        $team = $this->makeTeam();
+        $phone = Extension::create([
+            'team_id' => $team->id,
+            'number' => '202',
+            'type' => 'sip_phone',
+            'sip_username' => 'desk2',
+            'sip_password' => 'secret',
+            'transport' => 'udp',
+            'is_active' => true,
+        ]);
+        $agent = Extension::create([
+            'team_id' => $team->id,
+            'number' => '203',
+            'type' => 'ai_agent',
+            'is_active' => true,
+        ]);
+
+        // No edge: Asterisk fixes up NATed contacts itself.
+        $this->assertSame('yes', DB::table('ps_endpoints')->where('id', "t{$team->id}_202")->value('rewrite_contact'));
+
+        config(['telephony.kamailio.enabled' => true]);
+        app(EndpointSyncer::class)->sync($phone->fresh());
+        app(EndpointSyncer::class)->sync($agent->fresh());
+
+        $this->assertSame('no', DB::table('ps_endpoints')->where('id', "t{$team->id}_202")->value('rewrite_contact'));
+        // AI agents don't go through the edge.
+        $this->assertSame('yes', DB::table('ps_endpoints')->where('id', "t{$team->id}_203")->value('rewrite_contact'));
+    }
+
     public function test_endpoint_syncer_marks_webrtc_endpoints_with_dtls_settings(): void
     {
         $team = $this->makeTeam();
