@@ -1,4 +1,4 @@
-import { UserAgent, Registerer, Inviter, SessionState } from 'sip.js';
+import { UserAgent, Registerer, RegistererState, Inviter, SessionState } from 'sip.js';
 
 class SipPhone {
     constructor() {
@@ -28,6 +28,11 @@ class SipPhone {
         const userAgentOptions = {
             authorizationUsername: username,
             authorizationPassword: password,
+            // Contact user = the extension. Asterisk only applies the
+            // Path the SIP edge records (to reach this browser) when the
+            // contact's user matches the AOR; SIP.js otherwise picks a
+            // random one.
+            contactName: username,
             transportOptions,
             uri,
             sessionDescriptionHandlerFactoryOptions: {
@@ -50,40 +55,83 @@ class SipPhone {
         try {
             await this.userAgent.start();
 
+            // Ready only once the server accepts the login. register()
+            // resolves when the REGISTER is sent, not when it succeeds.
             this.registerer = new Registerer(this.userAgent);
-            await this.registerer.register();
-
-            this._setState('idle', 'Registered');
+            this.registerer.stateChange.addListener((state) => {
+                if (state === RegistererState.Registered && this.state === 'error') {
+                    this._setState('idle', 'Registered');
+                } else if (state === RegistererState.Unregistered && this.state === 'idle') {
+                    this._setState('error', 'Logged out');
+                }
+            });
+            this._setState('error', 'Logging in…');
+            await this.registerer.register({
+                requestDelegate: {
+                    onReject: (response) => {
+                        this._setState('error', `Login refused (${response.message.statusCode})`);
+                    },
+                },
+            });
         } catch (error) {
             this._setState('error', error.message || 'Connection failed');
         }
     }
 
     _handleIncoming(invitation) {
-        this.session = invitation;
-        this._setState('incoming', invitation.remoteIdentity?.uri?.user || 'Unknown');
-
-        // Auto-reject if we're already in a call
-        if (this.state === 'in-call') {
+        // One SIP session at a time: turn away a second INVITE while a
+        // call is up or already ringing. This check has to come before
+        // this.session is replaced, or the live call's handle is lost.
+        if (this.session && ['in-call', 'incoming', 'connecting', 'ringing'].includes(this.state)) {
             invitation.reject();
             return;
         }
 
-        this._setState('incoming', invitation.remoteIdentity?.uri?.user || 'Unknown');
+        this.session = invitation;
+        const info = this._callInfo(invitation);
+        this._setState('incoming', info.from || 'Unknown');
+        this._emitCall('incoming', info);
 
         invitation.stateChange.addListener((state) => {
             switch (state) {
                 case SessionState.Established:
                     this._setState('in-call');
                     this._setupAudio(invitation);
+                    this._emitCall('answered', info);
                     break;
                 case SessionState.Terminated:
-                    this._setState('idle');
-                    this._cleanupAudio();
-                    this.session = null;
+                    this._emitCall('ended', info);
+                    if (this.session === invitation) {
+                        this._setState('idle');
+                        this._cleanupAudio();
+                        this.session = null;
+                    }
                     break;
             }
         });
+    }
+
+    /**
+     * Who is calling and which number they dialled. The dialled number
+     * comes from X-Orbital-DID when the dialplan adds it.
+     */
+    _callInfo(invitation) {
+        const request = invitation.request;
+        return {
+            callId: request?.callId || null,
+            from: invitation.remoteIdentity?.uri?.user || null,
+            fromName: invitation.remoteIdentity?.displayName || null,
+            did: request?.getHeader?.('X-Orbital-DID') || null,
+            // Set on test calls placed from the admin trial page.
+            testCall: request?.getHeader?.('X-Orbital-Test-Call') || null,
+        };
+    }
+
+    /** Tell the page about a call: incoming, answered, ended. */
+    _emitCall(phase, info) {
+        window.dispatchEvent(new CustomEvent('orbital-call', {
+            detail: { phase, ...info },
+        }));
     }
 
     async answer() {

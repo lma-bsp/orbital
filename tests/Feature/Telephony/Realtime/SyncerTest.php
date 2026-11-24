@@ -105,6 +105,12 @@ class SyncerTest extends TestCase
         $this->assertSame('no', $row->rewrite_contact);
         $this->assertSame('opus,ulaw', $row->allow);
         $this->assertSame('yes', DB::table('ps_aors')->where('id', "t{$team->id}_301")->value('support_path'));
+        // Qualify ignores Path, would mark the browser unreachable, and
+        // Dial would then skip it.
+        $this->assertSame(0, (int) DB::table('ps_aors')->where('id', "t{$team->id}_301")->value('qualify_frequency'));
+        // One live contact: the newest login replaces a stale WebSocket's.
+        $this->assertSame(1, (int) DB::table('ps_aors')->where('id', "t{$team->id}_301")->value('max_contacts'));
+        $this->assertSame('yes', DB::table('ps_aors')->where('id', "t{$team->id}_301")->value('remove_existing'));
     }
 
     public function test_sip_phones_keep_the_edge_record_route_behind_kamailio(): void

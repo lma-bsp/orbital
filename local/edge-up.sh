@@ -81,9 +81,23 @@ EDGE_SIP_ADVERTISE_IP="${EDGE_SIP_ADVERTISE_IP:-${EDGE_RTP_ADVERTISE_IP:-}}"
 if [ -n "${EDGE_SIP_ADVERTISE_IP}" ]; then
     # PIN_INDIALOG_TO_BACKEND: Asterisk's Contact is its pod IP, which
     # the off-cluster edge can't reach; route in-dialog via the NodePort.
+    # EDGE_INTERNAL_ADVERTISE: the Kamailio container's own address on the
+    # k3d network (the one in dispatcher.list / edgeAddresses), which
+    # Asterisk can reach; it can't reach the public IP from inside the
+    # cluster. Browser softphones register through a socket advertising
+    # it, so the Path Asterisk stores, and the calls it sends them, come
+    # back here. Must be an IP: Kamailio resolves it at startup and the
+    # container can't see cluster DNS.
+    INTERNAL_SED=()
+    if [ -n "${EDGE_INTERNAL_ADVERTISE:-}" ]; then
+        INTERNAL_SED=(-e "/^listen=tls:0\.0\.0\.0:7443\$/a listen=udp:0.0.0.0:5080 advertise ${EDGE_INTERNAL_ADVERTISE}:5080"
+                      -e '1a #!define EDGE_INTERNAL_SOCKET udp:0.0.0.0:5080')
+        echo "==> browser softphones reach Asterisk via ${EDGE_INTERNAL_ADVERTISE}:5080"
+    fi
     sed -E -e "s|^listen=(udp\|tcp):0\.0\.0\.0:5060\$|listen=\1:0.0.0.0:5060 advertise ${EDGE_SIP_ADVERTISE_IP}:5060|" \
         -e '1a #!define PIN_INDIALOG_TO_BACKEND' \
         -e '1a #!define RTPENGINE_DIRECTIONS' \
+        "${INTERNAL_SED[@]}" \
         "${SCRIPT_DIR}/../docker/kamailio/kamailio.cfg" > "${EDGE_DIR}/kamailio.cfg"
     export KAMAILIO_CFG="./kamailio.cfg"
     echo "==> Kamailio advertises ${EDGE_SIP_ADVERTISE_IP}:5060"

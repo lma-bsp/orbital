@@ -134,9 +134,17 @@ class EndpointSyncer
 
         $aorRow = [
             'id' => $endpointId,
-            'max_contacts' => $isWebrtc ? 5 : 1,
-            'qualify_frequency' => 30,
-            'remove_existing' => $isWebrtc ? 'no' : 'yes',
+            // Behind the edge, a page reload or a second login leaves the
+            // old WebSocket's contact behind, and PJSIP/<ext> rings only
+            // one contact; keep just the newest so it's the live one.
+            'max_contacts' => $isWebrtc && ! $webrtcViaEdge ? 5 : 1,
+            // Asterisk's qualify OPTIONS ignore the Path a browser phone
+            // registered through the edge with, so they chase the
+            // phone's placeholder host and mark it unreachable, and Dial
+            // then skips it. The edge's WebSocket keepalive watches those
+            // connections instead.
+            'qualify_frequency' => $webrtcViaEdge ? 0 : 30,
+            'remove_existing' => $isWebrtc && ! $webrtcViaEdge ? 'no' : 'yes',
             // support_path lets the Asterisk that receives a REGISTER
             // store a Path header pointing at itself, so a sibling
             // Asterisk looking up this contact in the shared ARA
