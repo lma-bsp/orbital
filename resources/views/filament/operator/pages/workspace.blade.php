@@ -1,6 +1,8 @@
 <x-filament-panels::page>
     <x-filament-actions::modals />
-    @if ($this->activeTeamId)
+    @if ($this->usesMultiCall())
+        @livewire('multi-call-workspace')
+    @elseif ($this->activeTeamId)
         <div style="display: grid; grid-template-columns: 7fr 3fr; gap: 1.5rem; align-items: start;">
             <div>
                 @if ($this->takingMessage)
@@ -102,13 +104,59 @@
                 @endif
             </div>
 
-            <x-filament::section
-                heading="Intake Flow"
-                icon="heroicon-o-list-bullet"
-                compact
-            >
-                @livewire('compiled-flow-viewer', ['teamId' => $this->activeTeamId])
-            </x-filament::section>
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                @php($brief = $this->callBrief())
+                @if ($brief && ($brief['operator_note'] || $brief['greeting'] || $brief['passcode'] || $brief['aliases']))
+                    <x-filament::section heading="Call handling" icon="heroicon-o-phone" compact>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.875rem;">
+                            @if ($brief['operator_note'])
+                                <div>
+                                    <x-filament::badge color="warning" icon="heroicon-o-exclamation-triangle" size="lg">
+                                        {{ $brief['operator_note'] }}
+                                    </x-filament::badge>
+                                </div>
+                            @endif
+                            @if ($brief['greeting'])
+                                <div>
+                                    <div style="font-size: 0.75rem; font-weight: 500; color: var(--gray-500);">Answer with</div>
+                                    <div style="font-weight: 600;">{{ $brief['greeting'] }}</div>
+                                </div>
+                            @endif
+                            @if ($brief['passcode'])
+                                <div x-data="{ shown: false }">
+                                    <div style="font-size: 0.75rem; font-weight: 500; color: var(--gray-500);">Passcode</div>
+                                    <span x-show="! shown" style="font-family: monospace;">••••••</span>
+                                    <span x-show="shown" x-cloak style="font-family: monospace; font-weight: 600;">{{ $brief['passcode'] }}</span>
+                                    <x-filament::link tag="button" size="sm" x-on:click="shown = ! shown" style="margin-left: 0.5rem;">
+                                        <span x-text="shown ? 'Hide' : 'Show'">Show</span>
+                                    </x-filament::link>
+                                </div>
+                            @endif
+                            @if ($brief['aliases'])
+                                <div>
+                                    <div style="font-size: 0.75rem; font-weight: 500; color: var(--gray-500);">Also answers to account</div>
+                                    <div>{{ collect($brief['aliases'])->map(fn ($n) => '#'.$n)->implode(', ') }}</div>
+                                </div>
+                            @endif
+                        </div>
+                    </x-filament::section>
+                @endif
+
+                <x-filament::section
+                    heading="Intake Flow"
+                    icon="heroicon-o-list-bullet"
+                    compact
+                >
+                    @livewire('compiled-flow-viewer', ['teamId' => $this->activeTeamId])
+                </x-filament::section>
+
+                @if ($brief && $brief['info_pages'])
+                    {{-- Verbatim from the old system: fixed-width screens laid out side by side, so keep the monospace layout. --}}
+                    <x-filament::section heading="Info pages (Amtelco)" icon="heroicon-o-document-text" compact collapsible>
+                        <pre style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.6875rem; line-height: 1.35; white-space: pre; overflow-x: auto; margin: 0;">{{ $brief['info_pages'] }}</pre>
+                    </x-filament::section>
+                @endif
+            </div>
         </div>
     @else
         <x-filament::section>

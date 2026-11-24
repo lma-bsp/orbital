@@ -195,4 +195,18 @@ return [
         'max' => (int) env('STAFF_EXTENSION_MAX', 2999),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Operator Window
+    |--------------------------------------------------------------------------
+    |
+    | multi_call_workspace: show every call on the operator's desk with a tab
+    | per call instead of one fetched account. Usually switched from
+    | Platform Settings → Operator Window, which overrides this default.
+    |
+    */
+    'operator' => [
+        'multi_call_workspace' => (bool) env('ORBITAL_MULTI_CALL_WORKSPACE', false),
+    ],
+
 ];

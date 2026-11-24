@@ -272,4 +272,71 @@ class AsteriskAmiService
 
         return str_contains($response, 'Success');
     }
+
+    /**
+     * Ring a channel and, once it answers, connect it to a dialplan
+     * application (e.g. MusicOnHold). Async: true means Asterisk
+     * accepted the request, not that the far end answered.
+     *
+     * @param  array<string, string>  $variables  channel variables set before the call is placed
+     */
+    public function originateToApplication(
+        string $channel,
+        string $application,
+        string $data,
+        string $callerId,
+        array $variables = [],
+        int $timeoutMs = 30000,
+    ): bool {
+        if (! $this->connect()) {
+            return false;
+        }
+
+        $action = [
+            'Action' => 'Originate',
+            'Channel' => $channel,
+            'Application' => $application,
+            'Data' => $data,
+            'CallerID' => $callerId,
+            'Timeout' => (string) $timeoutMs,
+            'Async' => 'true',
+        ];
+
+        // AMI takes one `Variable: name=value` per variable, but the
+        // action map has unique keys; Asterisk also accepts them
+        // comma-separated on one line.
+        if ($variables !== []) {
+            $action['Variable'] = implode(',', array_map(
+                fn (string $k, string $v) => "{$k}={$v}",
+                array_keys($variables),
+                $variables,
+            ));
+        }
+
+        $response = $this->sendAction($action);
+
+        $this->disconnect();
+
+        return str_contains($response, 'Success');
+    }
+
+    /**
+     * Whether a PJSIP endpoint has a live registration, i.e. a softphone
+     * is logged in and can be rung.
+     */
+    public function endpointIsRegistered(string $endpoint): bool
+    {
+        if (! $this->connect()) {
+            return false;
+        }
+
+        $response = $this->sendAction([
+            'Action' => 'Command',
+            'Command' => 'pjsip show contacts',
+        ]);
+
+        $this->disconnect();
+
+        return (bool) preg_match('/Contact:\s+'.preg_quote($endpoint, '/').'\/\S+\s+\S+\s+(Avail|NonQual|Unknown)/', $response);
+    }
 }

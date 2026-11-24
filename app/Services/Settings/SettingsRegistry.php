@@ -120,6 +120,11 @@ final class SettingsRegistry
                 'icon' => 'heroicon-o-magnifying-glass',
                 'description' => 'Laravel Telescope debug + audit dashboard. Toggle it off and prune entries from here.',
             ],
+            'operator_window' => [
+                'label' => 'Operator Window',
+                'icon' => 'heroicon-o-computer-desktop',
+                'description' => 'How the operator Workspace lays out the calls an operator is handling.',
+            ],
             'knowledge' => [
                 'label' => 'Knowledge & Embeddings',
                 'icon' => 'heroicon-o-book-open',
@@ -680,6 +685,15 @@ final class SettingsRegistry
                 'config_key' => 'telephony.asterisk.internal_did_simulation',
                 'helper' => 'Development-only shortcut that lets operator softphones dial a client DID directly through the internal dialplan, as if it arrived on a real trunk. Leave OFF in production — a real operator should never be able to self-originate a call as if it came from outside the building.',
                 'restart_required' => ['asterisk'],
+            ],
+
+            // ─── Operator Window ───────────────────────────────────────
+            'orbital.operator.multi_call_workspace' => [
+                'section' => 'operator_window',
+                'label' => 'Multi-call workspace',
+                'type' => 'toggle',
+                'config_key' => 'orbital.operator.multi_call_workspace',
+                'helper' => 'Replaces the one-account Workspace with a strip of every call on the operator\'s desk and a tab per call. Each tab loads its own client and keeps its own message draft. Try it first under System → Multi-call trial.',
             ],
 
             // ─── LiveKit ───────────────────────────────────────────────

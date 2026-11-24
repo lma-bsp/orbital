@@ -7,6 +7,8 @@ namespace App\Filament\Operator\Pages;
 use App\Models\Message;
 use App\Models\Team;
 use App\Services\Messages\PartialMessagePolicy;
+use App\Services\Operator\ClientCallBrief;
+use App\Services\Operator\ClientSearch;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms;
@@ -63,8 +65,22 @@ class Workspace extends Page implements HasTable
 
     public string $msgUrgency = 'normal';
 
+    /**
+     * The multi-call layout (Platform Settings → Operator Window): a
+     * strip of every call on the desk and a tab per call, instead of
+     * one fetched account at a time.
+     */
+    public function usesMultiCall(): bool
+    {
+        return (bool) config('orbital.operator.multi_call_workspace', false);
+    }
+
     public function getSubheading(): ?string
     {
+        if ($this->usesMultiCall()) {
+            return null;
+        }
+
         if ($this->activeTeamData) {
             return 'Account: '.$this->activeTeamData['name'].' (#'.$this->activeTeamData['account_number'].')';
         }
@@ -101,6 +117,36 @@ class Workspace extends Page implements HasTable
             ->all();
 
         $this->resetTable();
+    }
+
+    /**
+     * Clients matching a name, account number, or alias.
+     *
+     * @return array<int, string> team id => label
+     */
+    public function searchClients(string $search): array
+    {
+        return app(ClientSearch::class)->search($search);
+    }
+
+    /**
+     * What the operator needs in view while on a call for the loaded
+     * client: how to answer, the pinned note, the passcode, other
+     * account numbers, and the info pages carried over from the old
+     * system. Read per render rather than kept in public state so the
+     * passcode is not part of the component snapshot.
+     *
+     * @return array{greeting: ?string, operator_note: ?string, passcode: ?string, aliases: array<int, int>, info_pages: ?string}|null
+     */
+    public function callBrief(): ?array
+    {
+        if (! $this->activeTeamId) {
+            return null;
+        }
+
+        $team = Team::find($this->activeTeamId);
+
+        return $team ? app(ClientCallBrief::class)->for($team) : null;
     }
 
     /**
@@ -255,6 +301,10 @@ class Workspace extends Page implements HasTable
 
     protected function getHeaderActions(): array
     {
+        if ($this->usesMultiCall()) {
+            return [];
+        }
+
         return [
             Action::make('fetch_account')
                 ->label('Fetch Account')
@@ -265,14 +315,15 @@ class Workspace extends Page implements HasTable
                     ? view('filament.operator.partials.recent-accounts', ['accounts' => $this->recentAccounts])
                     : null)
                 ->schema([
+                    // Searched server-side: an installation migrated from
+                    // another system has thousands of clients, too many to
+                    // ship to the browser as options.
                     Forms\Components\Select::make('team_id')
                         ->label('Search all clients')
-                        ->options(fn () => Team::query()
-                            ->where('personal_team', false)
-                            ->orderBy('name')
-                            ->get()
-                            ->mapWithKeys(fn (Team $t) => [$t->id => "{$t->name} (#{$t->account_number})"]))
+                        ->placeholder('Name, account number, or old account number')
                         ->searchable()
+                        ->getSearchResultsUsing(fn (string $search): array => $this->searchClients($search))
+                        ->getOptionLabelUsing(fn ($value): ?string => ($t = Team::find($value)) ? "{$t->name} (#{$t->account_number})" : null)
                         ->required(),
                 ])
                 ->modalWidth('lg')

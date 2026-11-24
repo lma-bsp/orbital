@@ -62,6 +62,7 @@ class PlatformSettings extends Page implements HasForms
         'error_reporting',
         'telescope',
         'knowledge',
+        'operator_window',
     ];
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-cog-6-tooth';

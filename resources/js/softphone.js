@@ -46,6 +46,23 @@ export default function softphone() {
 
             if (!window.SipPhone || !this.sipConfig.wsUrl) return;
 
+            // The multi-call workspace drives the phone through
+            // window events. Registered once: the listener reads the
+            // phone from window, so it survives SPA navigation.
+            if (!window._orbitalSoftphoneCommands) {
+                window._orbitalSoftphoneCommands = true;
+                window.addEventListener('orbital-softphone-command', (e) => {
+                    const phone = window._orbitalSipPhone;
+                    if (!phone) return;
+                    switch (e.detail?.action) {
+                        case 'answer': phone.answer(); break;
+                        case 'hangup': phone.hangup(); break;
+                        case 'hold': if (!phone.held) phone.toggleHold(); break;
+                        case 'resume': if (phone.held) phone.toggleHold(); break;
+                    }
+                });
+            }
+
             // Persist the SipPhone instance on window so it survives
             // SPA navigation (wire:navigate).
             if (window._orbitalSipPhone) {
