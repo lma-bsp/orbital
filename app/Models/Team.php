@@ -33,6 +33,9 @@ class Team extends JetstreamTeam
         'tier',
         'keep_partial_messages',
         'two_factor_grace_days',
+        'greeting',
+        'operator_note',
+        'passcode',
     ];
 
     /** Service tier vocabulary used by QueueMemberSyncer's penalty math. */
@@ -71,6 +74,10 @@ class Team extends JetstreamTeam
             // encrypted at rest. The cast handles encrypt/decrypt on
             // read and write so consumers just see a plain array.
             'voicemail_transcription_config' => 'encrypted:array',
+            // What a caller says to prove they are the client's own
+            // staff. Read back to operators, so it can't be hashed;
+            // encrypted at rest instead.
+            'passcode' => 'encrypted',
         ];
     }
 
@@ -190,6 +197,18 @@ class Team extends JetstreamTeam
     public function operatingHours(): HasMany
     {
         return $this->hasMany(OperatingHour::class);
+    }
+
+    /** Other account numbers this client answers to. */
+    public function accountAliases(): HasMany
+    {
+        return $this->hasMany(ClientAccountAlias::class)->orderBy('account_number');
+    }
+
+    /** Verbatim data from the system this client was migrated from. */
+    public function legacyRecords(): HasMany
+    {
+        return $this->hasMany(ClientLegacyRecord::class);
     }
 
     public function dids(): HasMany

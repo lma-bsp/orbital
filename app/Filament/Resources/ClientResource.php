@@ -165,6 +165,27 @@ class ClientResource extends Resource
                                     ->label('Keep partial messages')
                                     ->default(false)
                                     ->helperText('When a caller hangs up before the script finishes, keep what was collected (name, callback number) and mark it incomplete instead of discarding it. Individual intake goals can override this.'),
+                                // Shown to the operator in the workspace
+                                // while on this client's call.
+                                Forms\Components\Textarea::make('greeting')
+                                    ->label('Answer phrase')
+                                    ->rows(2)
+                                    ->maxLength(1000)
+                                    ->helperText('How operators answer this client\'s line, or an instruction for doing so.'),
+                                Forms\Components\TextInput::make('operator_note')
+                                    ->label('Pinned operator note')
+                                    ->maxLength(255)
+                                    ->helperText('Short note shown above everything else in the operator workspace, e.g. "DR ON VACATION UNTIL 12/1".'),
+                                Forms\Components\TextInput::make('passcode')
+                                    ->label('Caller passcode')
+                                    ->password()
+                                    ->revealable()
+                                    ->maxLength(64)
+                                    ->helperText('What the client\'s own staff say to verify themselves. Stored encrypted; shown to operators.'),
+                                Forms\Components\Placeholder::make('account_aliases')
+                                    ->label('Also answers to account')
+                                    ->content(fn (?Team $record): string => $record?->accountAliases->pluck('account_number')->map(fn ($n) => '#'.$n)->implode(', ') ?: '—')
+                                    ->visible(fn (?Team $record): bool => $record !== null && $record->accountAliases()->exists()),
                                 Forms\Components\Hidden::make('personal_team')
                                     ->default(false),
                             ]),

@@ -45,6 +45,12 @@ storage/*.key
 database/database.sqlite
 database/*.sqlite
 
+# Host data: the cluster's persistent volumes, and customer exports
+# dropped here for import (client lists, directories, passcodes). They
+# are copied into a running pod for an import, never into an image.
+data
+data_files_inbound
+
 # Tests + docs
 tests
 phpunit.xml

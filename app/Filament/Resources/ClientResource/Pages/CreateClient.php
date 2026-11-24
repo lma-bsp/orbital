@@ -26,6 +26,9 @@ class CreateClient extends CreateRecord
             'max_concurrent_calls' => $data['max_concurrent_calls'] ?? null,
             'suspended_at' => $data['suspended_at'] ?? null,
             'recording_overrides' => $this->cleanRecordingOverrides($data['recording_overrides'] ?? null),
+            'greeting' => $data['greeting'] ?? null,
+            'operator_note' => $data['operator_note'] ?? null,
+            'passcode' => ($data['passcode'] ?? null) ?: null,
         ]);
 
         $owner = User::find($data['user_id']);
