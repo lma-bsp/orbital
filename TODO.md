@@ -26,6 +26,14 @@ repo itself has NOT been made public; that stays a deliberate act.
       - `docker/asterisk/config/version.txt` — a config-generation
         fingerprint UUID, not a credential.
       - `.env` is gitignored.
+- [ ] **Redo the secret sweep over `docker/`.** The sweep above missed
+      two live committed credentials found by the 2026-11-24 security
+      review: the AMI secret in `docker/asterisk/manager.conf` and the
+      LiveKit key/secret plus Valkey password in
+      `docker/livekit/livekit.yaml` and `sip-config.yaml`. Both are in
+      git history, so rotate them (and decide on a history rewrite)
+      before the repo goes public. See
+      `docs/plans/security-review-fixes.md` §3, §4, §9.
 - [ ] **Decide on the CLA mechanism.** `CLA.md` exists and
       `CONTRIBUTING.md` asks for a comment-based signature. If contribution
       volume ever justifies it, wire up a CLA bot instead of tracking
@@ -39,7 +47,211 @@ repo itself has NOT been made public; that stays a deliberate act.
       point it at its own source — that's the substance of the section 13
       obligation, and the About page says so to whoever reads it.
 
+## Known bugs
+
+- [ ] **Operator Workspace shows the wrong client's script.**
+      `workspace.blade.php:150` mounts `compiled-flow-viewer` with
+      `['teamId' => $this->activeTeamId]`, but
+      `CompiledFlowViewer::mount()` (`app/Livewire/CompiledFlowViewer.php:50`)
+      only takes `extensionNumber`, `personaId`, `sessionKey` and has no
+      `teamId` property. The team is dropped and the viewer falls back to
+      the first active persona of *any* client (the dev fallback). Fix:
+      accept `teamId`, resolve that client's Inbound Phone entry flow /
+      default persona, and never fall back across clients. Also pass
+      `sessionKey` on an AI → operator handoff so captured fields show up
+      (documented in `docs/operator/workspace.md` but not wired). Add a
+      test that a viewer mounted for client A never renders client B's flow.
+- [ ] **Agent worker's `send_sms` tool is `None`.**
+      In `agent-worker/tools/compiled_flow.py`, `_make_send_sms_tool`
+      has no `return`; its `return send_sms` sits unreachable after
+      `return transition_to_flow` at the end of
+      `_make_transition_to_flow_tool`. Any persona whose flow includes
+      `send_sms` gets `None` in its tool list. Move the return back. The
+      tool is still a stub ("not yet wired") — real sending is part of
+      `docs/plans/is-parity/05-delivery-and-escalation.md`.
+
+Found while writing the IS-parity plans (`docs/plans/is-parity/`),
+2026-11-24. Checked against the code:
+
+- [ ] **New call recordings can't be played anywhere.** The Play
+      actions (`CallLogResource.php:125`, portal `CallHistory.php:100`)
+      and `recording-player.blade.php:13` only read the legacy
+      `call_logs.recording_path/_rx/_tx` columns. New recordings are
+      written to `call_recordings` (`UploadCallRecordingJob.php:138`,
+      `IngestLivekitEgressJob.php:126`) and nothing reads them there.
+- [ ] **Recording retention ignores `call_recordings`.**
+      `PruneExpiredCallRecordingsJob` only clears the legacy columns, so
+      new recording files are kept forever regardless of client policy.
+      Client deletion cascades the rows but leaves the files.
+- [ ] **Portal permissions are never checked.** `portal.view_home`,
+      `view_calls`, `view_messages`, `view_recordings` are granted
+      (`Portal/Resources/RoleResource.php:233-236`) but no portal page has
+      `canAccess()` or checks them; any portal user can see call history
+      and play recordings.
+- [ ] **`BelongsToTeam` scope fails open.** `BelongsToTeam.php:17-35`
+      adds no filter when nobody is authenticated or when a
+      non-super-admin has no `currentTeam`. Such a user sees every
+      client's rows; jobs/webhooks must always filter explicitly.
+- [ ] **Operator Workspace message list probably empty for non-super-admin
+      operators.** `Workspace.php:358` uses `Message::query()` with the
+      team scope still on, so an operator with a `currentTeam` gets
+      `team_id = own team AND team_id = loaded client`. The multi-call
+      desk removes the scope (`MultiCallWorkspace.php:290`). Confirm with a
+      test, then match the desk.
+- [ ] **Queued callers are hung up after ~30 s when there's no AI
+      overflow.** `client-dialplan.blade.php:52` passes the per-member
+      ring timeout (`strategyTemplate->timeout ?? 30`) as `Queue()`'s
+      *total* wait, then falls through to `Hangup()`.
+- [ ] **Client extensions dialled by bare number.**
+      `client-dialplan.blade.php:38` dials `PJSIP/{number}`, but client
+      endpoints are `t{team}_{number}` (`Extension::realtimeEndpointId()`).
+      A client extension won't ring, or rings a platform extension with
+      the same number.
+- [ ] **Multi-call desk "Save again" creates duplicate messages.**
+      `MultiCallDesk::saveMessage()` always calls `Message::create`
+      (`MultiCallDesk.php:199`); every re-save puts another copy in the
+      client's inbox.
+- [ ] **`web_call` API-key auth sends an empty key.** The migration stores
+      `{header_name, key_value}` (`…create_client_web_endpoints_table.php:35`);
+      `PostCallActions.php:373` reads `header` / `key`.
+- [ ] **Directory import and Knowledge Store forms use a class that doesn't
+      exist.** `Filament\Forms\Get` is gone in Filament 5 (only
+      `Filament\Schemas\Components\Utilities\Get`):
+      `ManageClientDirectory.php:179-180`, `KnowledgeStoreResource.php:189-203`,
+      `ManageClientDirectoryFields.php:54`. Those closures should TypeError
+      when evaluated.
+
+Reported by the plan agents, **not yet verified** — confirm before fixing
+(plan file in brackets has the detail):
+
+- [ ] Abandoned queue calls logged as `completed`, `answered_at` = Asterisk
+      answer, `billable_seconds` includes queue wait — `Answer()` before
+      `Queue()` + `CdrIngester.php:114-117` [10, 14]
+- [ ] Queue-answered calls never get `extension_id` (`CdrIngester.php:209-219`) [10]
+- [ ] AI `transfer_call` to `sip:{ext}@asterisk` lands in `[default]` and
+      hangs up; AI can name any extension, no client check [08, 15]
+- [ ] Voicemail greetings / disclosures rendered as 16/24 kHz WAV, which
+      Asterisk rejects (`VoicemailGreetingRenderer.php`, `DisclosureRenderer.php:172`) [14, 15]
+- [ ] Recording beep/disclosure silently dropped (`mix-monitor.blade.php:17-20`) —
+      two-party-consent risk [19, 22]
+- [ ] AMI: failed login keeps the socket so later actions run
+      unauthenticated (`AsteriskAmiService.php:30-66`); originate variables
+      joined with commas break on values containing commas [19, 23]
+- [ ] Soft-deleted queues / routing rules still generated into dialplan
+      (`withoutGlobalScopes()` in `AsteriskConfigService.php:54,113,160,164`) [14, 15]
+- [ ] Queue overflow AI picker lists every client's personas
+      (`ManageClientCallQueues.php:105-107`) [14]
+- [ ] Queue overflow to a persona with no extension dials `0`
+      (`client-dialplan.blade.php:55`) [15]
+- [ ] Queue create/overflow edits don't regenerate dialplan
+      (`TelephonyObserver.php:86-96`); agent-group edits don't resync
+      `queue_members` [14, 26]
+- [ ] Break/availability doesn't pause skill-matched queue memberships;
+      logout doesn't pause queues or reset availability
+      (`QueueMemberSyncer::syncForOperator()`) [18, 26]
+- [ ] Queue member recompute run as an operator with a `currentTeam` may
+      drop all staff extensions (scope hides `team_id` null) [26]
+- [ ] `queues` realtime table: sound columns are `integer`,
+      `periodic_announce` 50 chars, `defaultrule` integer [14, 26]
+- [ ] `musiconhold.conf` never generated — UI hold-music classes don't
+      exist in Asterisk [14]
+- [ ] Softphone hold only mutes locally, never re-INVITEs — caller hears
+      silence (`sip-phone.js` hold) [08]
+- [ ] `SipPhone.call()` overwrites a live session — click-to-dial during
+      a call drops the caller [20]
+- [ ] Transfer keypad digits sent as DTMF to the caller
+      (`softphone.js:288-299`) [08]
+- [ ] `softphone.transfer/park/conference` permissions never checked [08]
+- [ ] Caller-side `tTkK` Dial/Queue options may let callers trigger
+      transfer features [08]
+- [ ] `UploadCallRecordingJob` re-queues itself but Horizon `tries = 1`;
+      spool watcher resends unmatched files forever [08]
+- [ ] `Message.call_log_id` never written [13]
+- [ ] `PhoneNumber::toE164()` turns extensions / 7-digit / `011…` numbers
+      into bogus `+…` E.164 (`PhoneNumber.php:38, 395-403`) [13, 25]
+- [ ] Agent worker discards Laravel's caller-context reply (`agent.py:211-266`) [13]
+- [ ] Provider webhook rate limit 300/min per IP shared by inbound SMS and
+      receipts (`AppServiceProvider.php:72-74`) [23]
+- [ ] Inbound SMS dedupe runs after thread resolve/save — carrier retries
+      can reopen closed threads (`ProcessInboundMessageJob.php:108,123`) [16]
+- [ ] Delivery receipts can regress `delivered` ↔ `failed`
+      (`InboundMessageController.php:128`) [16]
+- [ ] `MessagingEndpoint::resolveByPool` returns `first()` with no unique
+      pool id — inbound SMS can land in another client's inbox [16]
+- [ ] Twilio status callbacks only requested if `status_callback` set per
+      endpoint (`TwilioProvider.php:219`) [16]
+- [ ] Signed storage URLs fall back to unsigned `Storage::url()` on error
+      (`recording-player.blade.php:19-25`, `MessageEntry.php:163-170`) [17]
+- [ ] Voicemail email carries transcript + WAV in clear, to team owner only [17]
+- [ ] Telescope enabled by default (`config/telescope.php:19`) [17]
+- [ ] `web_call` attaches endpoint credentials even when the path renders
+      to an arbitrary absolute URL; no private-address (SSRF) block
+      (`PostCallActions.php:318-335`); `oauth2` always throws [21]
+- [ ] Post-call templates use `app.timezone`, not client timezone; failed
+      expressions leave `{{ expr ⚠ error }}` in sent output [21]
+- [ ] `answer_question` with no stores selected never gets the search
+      tool (`AgentFlowCompiler::collectAvailableStores()`) [20]
+- [ ] Public chat: team lookup `id OR name` (500 on Postgres for
+      non-numeric), no rate limit/length cap, raw exception shown
+      (`ChatController.php:27-29`, `ChatConsole.php:56`) [24]
+- [ ] `teams.max_concurrent_calls` and `SipTrunk.max_channels` never
+      enforced [09, 19]
+- [ ] Outbound calls never recorded (`CdrIngester.php:131` only
+      inbound/internal); untagged calls (test calls, `from-livekit`
+      handoffs) dropped from Call History [09, 19]
+- [ ] Deleting a client cascades `call_logs` / `messages` — billing
+      history lost [09]
+- [ ] Operator logout note collected but never stored
+      (`OperatorPanelProvider.php:174,187`) [10, 18]
+- [ ] Portal dashboard counts "today" in UTC (`Portal/Pages/Dashboard.php:62,68`) [10]
+- [ ] `METRICS_PER_CLIENT_LABELS=false` may emit duplicate samples that
+      Pushgateway rejects [10]
+- [ ] Amtelco directory import drops status notes ("NOT O/C", "AWAY
+      TIL …") around numbers (`DirectoryListingMapper::placeNumber()`) [11]
+- [ ] Workspace phone/reason fields unvalidated; `captureField` accepts
+      any string regardless of slot type [25]
+
 ## Critical — before production
+
+- [ ] **Security review fixes (2026-11-24).** Whole-system review; plan
+      with locations, confirm-first checks and fixes in
+      `docs/plans/security-review-fixes.md`. Nothing was exploited live —
+      each item starts by confirming the problem.
+      - [ ] **High — Kamailio JSON-RPC answers on the public SIP ports.**
+            `docker/kamailio/kamailio.cfg:498` dispatches `/jsonrpc` on
+            any listener with no auth; `dispatcher.add` gives an outsider
+            trusted-backend status (toll fraud). Affects every edge,
+            including production VMs. [plan §1]
+      - [ ] **High — default agent-worker token in the Helm chart.**
+            `helm/orbital/values.yaml:239` ships a public dev token with
+            no guard, and `docs/getting-started/vultr-vke.md` never sets
+            one. It releases the AI provider keys over the public
+            ingress. Check every Helm install; rotate token and provider
+            keys where the default was live. [plan §2]
+      - [ ] **High — committed AMI secret, port 5038 published.**
+            `docker/asterisk/manager.conf` + compose never passing
+            `ASTERISK_AMI_SECRET`. Compose stacks only. [plan §3]
+      - [ ] **Medium — committed LiveKit key/secret, 7880 published.**
+            `docker/livekit/livekit.yaml`, `sip-config.yaml`. Compose
+            stacks only. [plan §4]
+      - [ ] **Medium — `livekit` SIP endpoint claimable by From user.**
+            `InfrastructureEndpointSyncer.php:33` writes no auth and no
+            IP match; outsiders can trigger handoff dial-outs. [plan §5]
+      - [ ] **Medium — portal view permissions never enforced.**
+            `portal.view_calls` / `view_recordings` / `view_messages` /
+            `view_home` are offered on the Roles page but nothing checks
+            them. Same-client only. [plan §6]
+      - [ ] **Low — Loki published without auth** (`docker-compose.yml:828`),
+            and the agent worker logs caller fields and SMS bodies
+            verbatim. [plan §7]
+      - [ ] **Low — dialplan injection through names.** Newlines in a
+            label or name become dialplan lines in
+            `resources/views/asterisk/*`. Needs super-admin steps today.
+            [plan §8]
+      - [ ] **Housekeeping.** `.gitignore` `data_files_inbound/` and
+            `core.9`; tenant scope fails open with no current team;
+            Sanctum fallback on agent-worker routes; pgAdmin SSO;
+            `hash_equals` on three tokens. [plan §9]
 
 - [x] **Observability stack — metrics + dashboards out of the box.**
       All four phases shipped.
@@ -442,6 +654,41 @@ the work.
       (fire-and-forget inserts, no blocking) and queryable by
       operator + date range. Admin/supervisor UI to browse the
       timeline per operator.
+
+### Amtelco import follow-ons
+
+`orbital:import-amtelco` and `orbital:import-amtelco-directories`
+(`app/Services/Import/Amtelco/`) migrate clients and directories from
+an Amtelco Infinity export.
+
+- [ ] **Decode the remaining Amtelco dial macros.** Directory numbers
+      carry the Amtelco macro that sends to them. Only the SMS text
+      macro, `.200SX"<number>".210S`, is decoded (to a bare number in
+      the "Text (SMS)" field); see `DirectoryListingMapper::isSmsMacro()`.
+      Every other macro is kept raw as "(code …)" next to its number
+      until someone who knows the Amtelco setup confirms what it means.
+      Don't guess. Seen in the export, with the listing labels that hint
+      at their meaning:
+      - `.150S"<handle>".151S`: labelled MISECURE TXT (a MiSecure
+        username?).
+      - `.60RX"<num>@<gateway>".13S` / `.14S`, and `.60R`: labelled
+        NONURGENT / TEXT (an email-to-SMS gateway?).
+      - `.81S` / `.98S` / `.92S` / `.19S` / `.21S` / `.88S` / `.97S` /
+        `.71S` / `.46S` / `.55S` / `.50S` `"<number>".0.1.1M`: labelled
+        PAGER # / BEEPER # / ALPHA (pages through different paging
+        carriers?).
+      Once confirmed, map each family in `placeNumber()` like the SMS
+      one and re-run the directory import with `--refresh`.
+- [ ] **Make directory `--refresh` safe on edited data.** `--refresh`
+      replaces every field the import owns (name, phones, pager, text,
+      notes, contact procedure, …) as a set, so a stale value can't
+      survive. The cost is that it also overwrites any edit an operator
+      made to those fields since the import. Only fields the import
+      never writes are kept. So far it has only been run when no entry
+      had been edited (`updated_at = created_at` on every row). Before
+      the next run on a live system, either skip entries edited since
+      the import (`updated_at > created_at`) unless forced, or report
+      them in the dry run so a person decides.
 
 ### Other
 
