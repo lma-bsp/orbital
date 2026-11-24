@@ -49,6 +49,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->useLeanPermissionRegistrar();
+
         $this->registerBootstrappers();
 
         // SendGrid over its web API (Laravel has no built-in transport
@@ -175,6 +177,24 @@ class AppServiceProvider extends ServiceProvider
      * BootstrapRegistry. Registration order determines execution
      * order when `orbital:bootstrap` runs them all.
      */
+    /**
+     * Same registrar, cheaper cache rebuild at thousands of clients; see
+     * App\Support\PermissionRegistrar.
+     *
+     * Bound here rather than in register() because Spatie binds its own
+     * in its provider's boot(), which runs after every register(). App
+     * providers boot after package providers, so this wins, provided
+     * nothing has resolved the registrar in between.
+     */
+    protected function useLeanPermissionRegistrar(): void
+    {
+        if ($this->app->resolved(PermissionRegistrar::class)) {
+            throw new \LogicException('Spatie\'s PermissionRegistrar was resolved before AppServiceProvider could replace it.');
+        }
+
+        $this->app->singleton(PermissionRegistrar::class, \App\Support\PermissionRegistrar::class);
+    }
+
     protected function registerBootstrappers(): void
     {
         $registry = $this->app->make(BootstrapRegistry::class);
