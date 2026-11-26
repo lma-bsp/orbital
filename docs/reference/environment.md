@@ -88,6 +88,7 @@ Laravel. Editing them in a running app has zero effect:
 | `WWWUSER`, `WWWGROUP` | compose | UID/GID for the `www-data` shadow user inside containers. Pin to the host UID so bind mounts don't get permission-wedged. |
 | `FORWARD_*_PORT` | compose | Port mappings from host → container for DB/Redis/Mailpit/etc. during local dev. |
 | `VITE_PORT`, `VITE_APP_NAME`, `VITE_REVERB_*` | Vite | Baked into the browser bundle at `pnpm run build` time. Changing requires a rebuild. |
+| `LIVEKIT_BIND_ADDRESS`, `LIVEKIT_SIP_BIND_ADDRESS`, `PGADMIN_BIND_ADDRESS` | compose | Host address LiveKit (7880/7881), the LiveKit SIP bridge (5069) and pgAdmin are published on. Empty means `127.0.0.1`. |
 
 ### The Python agent worker (no config path from Laravel)
 
@@ -116,6 +117,13 @@ requirement:
 | `INBOUND_MAIL_DOMAIN` | DNS MX record | Yes — System → Settings → Inbound Mail |
 | `ICECAST_ADMIN_PASSWORD` | Icecast service env | Yes — System → Settings → Icecast |
 | `VOICEMAIL_WEBHOOK_TOKEN` | Asterisk service env (`notify-voicemail.sh`) | No — too niche to surface |
+| `ASTERISK_AMI_SECRET` | Asterisk service env (written into `manager.conf` at boot; Asterisk refuses to start without it) | Yes — System → Settings → Asterisk, which overrides `.env`; keep them equal or leave the setting empty |
+| `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | LiveKit server and SIP bridge configs, rendered by Compose (`configs:` in `docker-compose.yml`); agent worker env | No |
+
+`ASTERISK_AMI_SECRET`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` and
+`REDIS_PASSWORD` have no default anywhere in the repository. `bin/orbital-secrets`
+generates any that are empty (`composer setup` and `make up` run it), and
+Compose refuses to start while one is missing.
 
 ### Tied to container internals (no Laravel consumer)
 

@@ -36,7 +36,8 @@ available before you begin.
 
 ### Prerequisites
 
-- Docker and Docker Compose
+- Docker and Docker Compose 2.23 or newer (the LiveKit configs use
+  `configs.content`)
 - PHP 8.4+ and Composer
 - Node.js 20+ with pnpm
 
@@ -46,11 +47,51 @@ available before you begin.
 cp .env.example .env
 composer install
 php artisan key:generate
+sh bin/orbital-secrets
 ./vendor/bin/sail up -d
 pnpm install
 php artisan migrate --seed
 pnpm run dev
 ```
+
+`bin/orbital-secrets` fills the per-install infrastructure secrets in `.env`:
+the AMI secret (`ASTERISK_AMI_SECRET`), the LiveKit key pair
+(`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`) and the Valkey password
+(`REDIS_PASSWORD`). `composer setup` and `make up` run it for you; it only
+fills empty values, so running it again is harmless. Nothing in the
+repository carries a working default for these any more: Compose refuses to
+start (`required variable ... is missing a value`) and Asterisk exits at boot
+until they are set.
+
+AMI (5038), the LiveKit API (7880/7881), the LiveKit SIP bridge (5069), Loki
+(3100), Ollama (11434) and pgAdmin (5050) are published on `127.0.0.1` only.
+If browsers on other machines must reach LiveKit or pgAdmin directly, set
+`LIVEKIT_BIND_ADDRESS`, `LIVEKIT_SIP_BIND_ADDRESS` or `PGADMIN_BIND_ADDRESS`
+in `.env` and firewall the port. AMI and Loki have no such switch; use an SSH
+tunnel.
+
+#### Upgrading a Compose install from before November 2026
+
+Older checkouts shipped a fixed AMI secret in `docker/asterisk/manager.conf`,
+and a fixed LiveKit key pair and Valkey password in `docker/livekit/*.yaml`.
+They are public. **If your stack ever ran with them and 5038 or 7880 was
+reachable from another machine, treat the AMI secret, the LiveKit key pair
+and the Valkey password as compromised**: AMI gives command execution in the
+Asterisk container, and the LiveKit pair lets anyone join live calls and
+forge webhooks. Even if the ports were never reachable, rotate.
+
+```bash
+git pull
+sh bin/orbital-secrets                 # fills empty values, replaces the old public ones
+make down && make up                   # or: sail down && sail up -d; restart everything together
+php artisan orbital:status             # AMI should report healthy
+```
+
+If you copied the old values into `.env` by hand, `bin/orbital-secrets`
+recognises and replaces them. Use `bin/orbital-secrets --rotate-all` to
+regenerate everything regardless. If an AMI secret was ever saved under
+**System → Settings → Asterisk**, clear it or set it to the new
+`ASTERISK_AMI_SECRET`, because that setting overrides `.env`.
 
 Then create yourself an administrator — a fresh install has no login:
 
