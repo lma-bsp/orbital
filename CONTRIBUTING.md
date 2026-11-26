@@ -65,6 +65,30 @@ real problem.
   pull request, with the license. A GPLv2-only *library* (as opposed to a
   separate containerized program) cannot be accepted — see [`NOTICE`](NOTICE).
 
+## Secret scanning
+
+CI runs [gitleaks](https://github.com/gitleaks/gitleaks) on every pull
+request, using the rules in [`.gitleaks.toml`](.gitleaks.toml). A credential
+in a commit fails the build, even if a later commit removes it: history is
+public. To catch it before you push, install gitleaks and add a pre-commit
+hook (optional):
+
+```
+cat > .git/hooks/pre-commit <<'HOOK'
+#!/bin/sh
+exec gitleaks git --pre-commit --staged --redact --no-banner \
+    --config .gitleaks.toml --baseline-path .gitleaks-baseline.json
+HOOK
+chmod +x .git/hooks/pre-commit
+```
+
+If it flags something that is not a secret, such as a test fixture or a
+documented placeholder, add a narrow allowlist entry to `.gitleaks.toml` with a
+comment saying why. Do not add new findings to `.gitleaks-baseline.json`. That
+file holds only the findings that predate the check, and every one has been
+reviewed. If a real credential got committed, rotate it. Removing the commit
+is not enough.
+
 ## Tests
 
 ```
