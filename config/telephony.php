@@ -78,6 +78,10 @@ return [
         'sip' => [
             'host' => env('LIVEKIT_SIP_HOST', 'livekit-sip'),
             'port' => (int) env('LIVEKIT_SIP_PORT', 5069),
+            // Source addresses Asterisk accepts as the `livekit` endpoint
+            // (identify_by=ip). Comma-separated IPs, CIDRs or hostnames;
+            // blank = the host above. List every bridge in HA.
+            'identify_match' => env('LIVEKIT_SIP_IDENTIFY_MATCH', ''),
         ],
 
         // The agent worker registers under this name (agent-worker/agent.py

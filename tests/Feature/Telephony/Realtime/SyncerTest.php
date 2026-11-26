@@ -12,6 +12,7 @@ use App\Models\SipTrunk;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Telephony\Realtime\EndpointSyncer;
+use App\Services\Telephony\Realtime\InfrastructureEndpointSyncer;
 use App\Services\Telephony\Realtime\QueueMemberSyncer;
 use App\Services\Telephony\Realtime\QueueSyncer;
 use App\Services\Telephony\Realtime\TrunkSyncer;
@@ -254,8 +255,56 @@ class SyncerTest extends TestCase
         ]);
 
         $endpointId = 'trunk_'.$trunk->id;
-        $this->assertDatabaseHas('ps_endpoints', ['id' => $endpointId]);
+        // No credentials to challenge with: username matching would let
+        // any `From: trunk_N` INVITE in, so identify by source IP only.
+        $this->assertDatabaseHas('ps_endpoints', ['id' => $endpointId, 'identify_by' => 'ip']);
+        $this->assertDatabaseHas('ps_endpoint_id_ips', [
+            'id' => $endpointId,
+            'endpoint' => $endpointId,
+            'match' => 'sip.iponly.test',
+        ]);
         $this->assertDatabaseMissing('ps_auths', ['id' => $endpointId]);
+
+        $trunk->update(['host' => '203.0.113.7']);
+
+        $this->assertDatabaseHas('ps_endpoint_id_ips', ['id' => $endpointId, 'match' => '203.0.113.7']);
+        $this->assertSame(1, DB::table('ps_endpoint_id_ips')->where('endpoint', $endpointId)->count());
+    }
+
+    // ── InfrastructureEndpointSyncer ────────────────────────────
+
+    public function test_livekit_endpoint_is_identified_by_ip_only(): void
+    {
+        config(['telephony.livekit.sip.host' => 'livekit-sip', 'telephony.livekit.sip.identify_match' => '']);
+
+        app(InfrastructureEndpointSyncer::class)->sync();
+
+        // No auth on this endpoint, so `From: livekit` must not identify it.
+        $this->assertDatabaseHas('ps_endpoints', ['id' => 'livekit', 'identify_by' => 'ip', 'auth' => null]);
+        $this->assertDatabaseHas('ps_endpoint_id_ips', [
+            'id' => 'livekit',
+            'endpoint' => 'livekit',
+            'match' => 'livekit-sip',
+        ]);
+    }
+
+    public function test_livekit_identify_rows_follow_the_configured_list_and_drop_stale_ones(): void
+    {
+        config(['telephony.livekit.sip.identify_match' => '10.0.0.5, 10.0.1.0/24,10.0.0.5']);
+        app(InfrastructureEndpointSyncer::class)->sync();
+
+        $this->assertSame(
+            ['livekit' => '10.0.0.5', 'livekit_2' => '10.0.1.0/24'],
+            DB::table('ps_endpoint_id_ips')->where('endpoint', 'livekit')->orderBy('id')->pluck('match', 'id')->all(),
+        );
+
+        config(['telephony.livekit.sip.identify_match' => '10.0.2.9']);
+        app(InfrastructureEndpointSyncer::class)->sync();
+
+        $this->assertSame(
+            ['livekit' => '10.0.2.9'],
+            DB::table('ps_endpoint_id_ips')->where('endpoint', 'livekit')->pluck('match', 'id')->all(),
+        );
     }
 
     public function test_trunk_syncer_deletes_all_rows_on_delete(): void

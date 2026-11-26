@@ -56,7 +56,10 @@ class TrunkSyncer
             'rewrite_contact' => 'yes',
             'rtp_symmetric' => 'yes',
             'dtmf_mode' => 'rfc4733',
-            'identify_by' => 'ip,username',
+            // A trunk without credentials has no auth to challenge with,
+            // so username matching would let any `From: trunk_N` INVITE
+            // in; identify it by source IP only.
+            'identify_by' => $trunk->username ? 'ip,username' : 'ip',
             // Force every outbound INVITE on this trunk through the
             // platform edge proxy. R-URI stays the carrier address
             // (`;lr` = loose routing per RFC 3261 §16.4) so the
