@@ -12,12 +12,15 @@ use App\Models\SipTrunk;
 use App\Services\Telephony\AsteriskAmiService;
 use App\Services\Telephony\LiveKitConfigService;
 use App\Services\Telephony\RtpengineService;
+use App\Support\AiProviderReadiness;
 use App\Support\DefaultCredentials;
 use Illuminate\Console\Command;
 
 class TelephonyStatus extends Command
 {
-    protected $signature = 'orbital:status';
+    protected $signature = 'orbital:status
+        {--strict : Exit non-zero when a needed AI provider key is missing or invalid}
+        {--probe : Check each needed AI provider key with a cheap authenticated call}';
 
     protected $description = 'Check the status of telephony services (Asterisk, LiveKit)';
 
@@ -75,7 +78,53 @@ class TelephonyStatus extends Command
 
         $this->reportUnrotatedDefaults();
 
-        return self::SUCCESS;
+        $aiProblems = $this->reportAiProviders((bool) $this->option('probe'));
+
+        return $this->option('strict') && $aiProblems > 0 ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * Which AI provider keys this installation's configuration needs,
+     * and which of those are missing. The list lives in
+     * {@see AiProviderReadiness} so the dashboard shows the same thing.
+     *
+     * @return int how many needed keys are missing or invalid
+     */
+    private function reportAiProviders(bool $probe): int
+    {
+        $report = AiProviderReadiness::report($probe);
+        $needed = array_filter($report, fn (array $row): bool => $row['status'] !== AiProviderReadiness::NOT_NEEDED);
+        $problems = AiProviderReadiness::problems($report);
+
+        $this->newLine();
+
+        if ($needed === []) {
+            $this->info('  AI providers: no AI configured, no keys needed.');
+
+            return 0;
+        }
+
+        if ($problems === []) {
+            $this->info('  AI providers: every needed key is set ('.implode(', ', array_column($needed, 'label')).').');
+
+            return 0;
+        }
+
+        $this->warn('  AI providers: '.count($problems).' needed key(s) not usable:');
+
+        foreach ($problems as $row) {
+            $state = match (true) {
+                $row['status'] === AiProviderReadiness::INVALID => 'DOWN, key rejected by the provider',
+                $row['level'] === AiProviderReadiness::LEVEL_DOWN => 'DOWN, missing',
+                default => 'missing',
+            };
+
+            $this->line("    ! {$row['label']} ({$state}): needed for ".implode('; ', $row['reasons']));
+        }
+
+        $this->line('    Set these in Platform Settings → AI Providers (or the environment).');
+
+        return count($problems);
     }
 
     /**

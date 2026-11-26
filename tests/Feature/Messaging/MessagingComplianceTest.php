@@ -348,6 +348,8 @@ class MessagingComplianceTest extends TestCase
     public function test_stop_and_help_never_reach_the_ai(): void
     {
         config()->set('messaging.auto_reply_enabled', true);
+        // The dispatch is skipped outright without a key.
+        config()->set('services.anthropic.api_key', 'sk-ant-test');
 
         // Partial fake: the inbound job still runs for real, only the
         // AI handoff is intercepted.

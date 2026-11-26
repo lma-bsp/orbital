@@ -71,10 +71,9 @@ RUN useradd --system --uid 1000 --no-create-home --shell /usr/sbin/nologin agent
     && chown -R agent:agent /app
 USER agent
 
-# Heartbeat keeps the Filament admin's Agent Worker health card green.
+# Heartbeat keeps the Filament admin's Agent Worker health card green and
+# reports which provider keys this env holds (booleans only; heartbeat.py).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -fsS -X POST \
-        -H "Authorization: Bearer ${ORBITAL_API_TOKEN}" \
-        "${ORBITAL_API_URL%/}/agent-worker/heartbeat" >/dev/null || exit 1
+    CMD python /app/heartbeat.py || exit 1
 
 CMD ["python", "agent.py", "start"]

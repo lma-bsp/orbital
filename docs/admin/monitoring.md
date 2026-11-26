@@ -32,11 +32,40 @@ configuration is validated for internal consistency, which catches the class of
 problem where every individual component is up and the arrangement between them
 is still wrong.
 
+**AI provider keys are checked against what you actually use.** The *AI
+Providers* card works out which keys this installation needs from its
+configuration: each active persona's LLM, speech-to-text and text-to-speech
+provider (blank means Anthropic and ElevenLabs, as the agent worker does), email
+routing rules and text queues that hand conversations to an AI persona, web chat
+overflow to AI, knowledge stores with OpenAI embeddings, the voicemail greeting,
+recording disclosure and AI fallback prompts, and directory smart ingest. The
+`local` LLM and Ollama need no key. A key counts as set when it is in Platform
+Settings → AI Providers or the environment, or, for voice personas only, when
+every running agent worker reports having it in its own environment (the worker
+heartbeat reports which keys it holds as true/false, never the values). A
+missing key is amber, or red when email or text replies routed to AI will fail
+on the next message. An installation with no AI configured shows green.
+
+When an email or text routed to AI arrives and there is no Anthropic key, no AI
+reply is attempted. The thread stays in the operator inbox with the note "AI
+reply skipped: no Anthropic key configured". An AI reply that fails after its
+retries leaves a note on the thread as well.
+
 The same data is available on the command line:
 
 ```
 php artisan orbital:status
 ```
+
+`orbital:status` ends with an *AI providers* block listing each needed key that
+is missing. Two options:
+
+- `--strict` exits with code 1 when any needed AI provider key is missing or
+  invalid, so install scripts and CI smoke tests can gate on it. Without it the
+  exit code is always 0.
+- `--probe` also makes one cheap authenticated call per configured provider
+  (such as listing models) and reports keys the provider rejects. It is off by
+  default because it makes outbound calls.
 
 ## Call Logs
 
