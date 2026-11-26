@@ -259,7 +259,7 @@ dig +short orbital.yourcompany.com
 
 ## Part 7 — Secrets
 
-Three secrets. Nothing here goes in a values file or in git.
+Three secrets and one token. Nothing here goes in a values file or in git.
 
 **7a. Registry credentials** — only for a private registry (your own
 build or mirror). Skip this for the public `cr.calltheory.com` images.
@@ -320,7 +320,30 @@ kubectl create secret generic orbital-orbital-app-secrets \
 > in the database. The blank entries just keep the pods from complaining
 > about missing variables.
 
-**7d. Managed database credentials** (skip if you're using in-cluster
+**7d. The agent-worker token.** The AI agent worker authenticates to
+the Laravel API with this token, and that API hands it the platform's AI
+provider keys and every client's prompts. The chart has no default and
+refuses to install without one:
+
+```bash
+export AGENT_WORKER_TOKEN="$(openssl rand -hex 32)"
+echo "$AGENT_WORKER_TOKEN"   # put it in your password manager now
+```
+
+Every `helm install` and `helm upgrade` below passes it with
+`--set agentWorker.token="$AGENT_WORKER_TOKEN"`. Use the same value each
+time; a new value rolls the Laravel and agent-worker pods onto it.
+
+> **Installed before this was required?** Older charts shipped a public
+> default token (`orbital-dev-agent-token`) and the upgrade now refuses
+> it. Treat that install as exposed: generate a new token as above, and
+> also rotate **every AI provider key** the install has used (Anthropic,
+> OpenAI, OpenRouter, ElevenLabs, Deepgram) at the provider, then enter
+> the new keys under **Conversational AI → Providers** (or in
+> app-secrets). Anyone who reached the public site could read them with
+> the old token.
+
+**7e. Managed database credentials** (skip if you're using in-cluster
 Postgres):
 
 ```bash
@@ -377,7 +400,8 @@ helm install orbital oci://<your-registry-host>/orbital/charts/orbital \
   --version <version> \
   --namespace orbital \
   -f helm/orbital/values-vultr-vke.yaml \
-  -f orbital-values.yaml
+  -f orbital-values.yaml \
+  --set agentWorker.token="$AGENT_WORKER_TOKEN"
 ```
 
 Helm will appear to hang for a minute — it is waiting for the migration
@@ -493,6 +517,7 @@ helm upgrade orbital oci://<your-registry-host>/orbital/charts/orbital \
   --namespace orbital \
   -f helm/orbital/values-vultr-vke.yaml \
   -f orbital-values.yaml \
+  --set agentWorker.token="$AGENT_WORKER_TOKEN" \
   --set telephony.kamailio.jsonrpcUrl=http://<edge-vm-ip>:8090/jsonrpc
 ```
 
@@ -511,6 +536,7 @@ helm upgrade orbital oci://<your-registry-host>/orbital/charts/orbital \
   --namespace orbital \
   -f helm/orbital/values-vultr-vke.yaml \
   -f orbital-values.yaml \
+  --set agentWorker.token="$AGENT_WORKER_TOKEN" \
   --version <new-version>
 ```
 
@@ -531,6 +557,9 @@ stays applied, which is why a restore path exists.
 - [ ] `APP_KEY` is stored outside the cluster (restoring without it
       leaves platform settings unreadable — see
       [Backups](../admin/backups.md))
+- [ ] The agent-worker token is stored outside the cluster, and
+      `kubectl -n orbital exec deploy/orbital-orbital-laravel -- php artisan orbital:status`
+      reports no credentials at their shipped default
 - [ ] Database firewall allows the cluster and nothing else
 - [ ] Alertmanager has somewhere to deliver
       ([Observability](../admin/observability.md))
