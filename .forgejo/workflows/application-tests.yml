@@ -398,6 +398,14 @@ jobs:
       context: ${{ matrix.context }}
       dockerfile: ${{ matrix.dockerfile }}
       extra-tags: ${{ needs.tag.outputs.extra }}
+      # Release identity for the AGPL section 13 source offer: these
+      # images are built from the canonical repository, so /source links
+      # it at the exact commit. Only the laravel image declares these
+      # ARGs; the others ignore them. The reusable workflow must forward
+      # build-args to `docker buildx build`.
+      build-args: |
+        ORBITAL_COMMIT=${{ github.sha }}
+        ORBITAL_SOURCE_URL=https://git.calltheory.com/calltheory/orbital
     secrets: inherit
 
   scan-images:

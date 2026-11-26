@@ -391,8 +391,12 @@ ollama:
 # /api/version all read sourceUrl. POINT IT AT YOUR OWN REPOSITORY when
 # you fork. Leaving it aimed upstream sends your users to source that
 # isn't yours.
+#
+# Empty (the default) uses the URL baked into the image at build time
+# (ORBITAL_SOURCE_URL build arg), falling back to upstream. Set it here
+# only to override what the image says.
 licensing:
-  sourceUrl: "https://git.calltheory.com/calltheory/orbital"
+  sourceUrl: ""
   releaseChannel: stable
 
 # ============================================================================

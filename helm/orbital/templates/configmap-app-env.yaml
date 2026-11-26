@@ -170,8 +170,12 @@ data:
   # lives. Anyone running MODIFIED Orbital must repoint this at their
   # own repository; the panel footers, /source, /api/version, and the
   # About page all resolve from it, so leaving it aimed upstream sends
-  # your users to source that isn't what they're running.
-  ORBITAL_SOURCE_URL: {{ .Values.licensing.sourceUrl | quote }}
+  # your users to source that isn't what they're running. Left out when
+  # empty so the URL the image was built with (ORBITAL_SOURCE_URL build
+  # arg) applies.
+  {{- with .Values.licensing.sourceUrl }}
+  ORBITAL_SOURCE_URL: {{ . | quote }}
+  {{- end }}
   ORBITAL_VERSION: {{ include "orbital.imageTag" . | quote }}
   ORBITAL_RELEASE_CHANNEL: {{ .Values.licensing.releaseChannel | quote }}
 

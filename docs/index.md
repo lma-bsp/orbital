@@ -62,6 +62,7 @@ Setting the platform up and keeping it running.
 - [Users & Roles](admin/users-roles.md) — staff, client contacts, and permissions
 - [Security](admin/security.md) — two-factor enforcement and access control
 - [Platform Settings](admin/platform-settings.md) — branding, providers, and system configuration
+- [Source offer and licensing](admin/licensing.md) — keeping `/source` pointed at the code you run
 
 **Operations**
 

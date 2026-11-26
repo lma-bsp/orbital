@@ -19,6 +19,9 @@ namespace App\Support;
  */
 final class Release
 {
+    /** The canonical upstream repository, used when nothing else is configured. */
+    public const UPSTREAM_SOURCE_URL = 'https://git.calltheory.com/calltheory/orbital';
+
     /**
      * Human-readable version string, e.g. "1.4.2" or "dev".
      */
@@ -95,7 +98,7 @@ final class Release
     {
         $url = (string) config('orbital.source_url', '');
 
-        return $url !== '' ? $url : 'https://git.calltheory.com/calltheory/orbital';
+        return $url !== '' ? $url : self::UPSTREAM_SOURCE_URL;
     }
 
     /**
