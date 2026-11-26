@@ -32,6 +32,16 @@ trait BelongsToTeam
                     $builder->getModel()->getTable().'.team_id',
                     $user->currentTeam->id
                 );
+
+                return;
+            }
+
+            // Signed in but no current client. Platform staff (operators,
+            // supervisors) work across clients without one, so they keep
+            // the unfiltered view; anyone else sees nothing rather than
+            // every client's rows.
+            if (! (method_exists($user, 'hasAnyPlatformRole') && $user->hasAnyPlatformRole())) {
+                $builder->whereRaw('1 = 0');
             }
         });
 

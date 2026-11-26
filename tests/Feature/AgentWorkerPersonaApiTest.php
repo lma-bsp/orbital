@@ -15,7 +15,7 @@ use Tests\TestCase;
 /**
  * The worker fetches its persona with the chart's shared secret (not a
  * Sanctum token) and gets the AI provider keys saved in Platform
- * Settings. Nobody else gets the keys.
+ * Settings. Nobody else gets in, Sanctum token or not.
  */
 class AgentWorkerPersonaApiTest extends TestCase
 {
@@ -56,13 +56,27 @@ class AgentWorkerPersonaApiTest extends TestCase
             ->assertUnauthorized();
     }
 
-    public function test_sanctum_user_gets_persona_without_keys(): void
+    public function test_sanctum_user_is_rejected(): void
     {
         Sanctum::actingAs(User::factory()->create());
 
-        $this->getJson('/api/agent-personas/by-extension/1001')
-            ->assertOk()
-            ->assertJsonPath('data.name', 'Ava')
-            ->assertJsonPath('provider_keys', []);
+        $this->getJson('/api/agent-personas/by-extension/1001')->assertUnauthorized();
+        $this->getJson('/api/extensions')->assertUnauthorized();
+        $this->postJson('/api/call-logs', [])->assertUnauthorized();
+    }
+
+    public function test_session_user_is_rejected(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $this->getJson('/api/agent-personas/by-extension/1001')->assertUnauthorized();
+    }
+
+    public function test_empty_configured_secret_refuses_empty_bearer(): void
+    {
+        config(['services.agent_worker.token' => '']);
+
+        $this->getJson('/api/agent-personas/by-extension/1001', ['Authorization' => 'Bearer '])
+            ->assertUnauthorized();
     }
 }

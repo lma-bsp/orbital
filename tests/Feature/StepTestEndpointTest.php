@@ -77,7 +77,10 @@ class StepTestEndpointTest extends TestCase
 
     public function test_only_super_admins_can_run_tests_and_only_on_post_call_steps(): void
     {
-        $this->test(['intake_goal_key' => 'send_email', 'step_params' => []], User::factory()->create())->assertForbidden();
+        $this->test(['intake_goal_key' => 'send_email', 'step_params' => []], $this->makeUserWithTeamlessRole('operator'))->assertForbidden();
+        // A signed-in user with no client and no platform role can't even
+        // resolve the orchestration: the team scope fails closed.
+        $this->test(['intake_goal_key' => 'send_email', 'step_params' => []], User::factory()->create())->assertNotFound();
         $this->test(['intake_goal_key' => 'transfer_call', 'step_params' => []])->assertUnprocessable();
         $this->assertCount(0, app('mailer')->getSymfonyTransport()->messages());
     }

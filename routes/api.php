@@ -42,8 +42,8 @@ Route::get('/version', fn () => Release::toArray());
  * because the worker isn't a Sanctum-issued user.
  */
 Route::post('/agent-worker/heartbeat', function (Request $request) {
-    $expected = config('services.agent_worker.token');
-    if (! $expected || $request->bearerToken() !== $expected) {
+    $expected = (string) config('services.agent_worker.token');
+    if ($expected === '' || ! hash_equals($expected, (string) $request->bearerToken())) {
         abort(401);
     }
     Cache::put('agent_worker:heartbeat', now(), now()->addSeconds(120));
@@ -103,7 +103,7 @@ Route::post('/voicemail/received', [VoicemailWebhookController::class, 'store'])
 // controller acts on `egress_ended` to register CallRecording rows.
 Route::post('/livekit/webhook', LivekitWebhookController::class);
 
-// Agent worker API (worker shared secret, or a Sanctum token)
+// Agent worker API (worker shared secret only)
 Route::middleware('agent-worker')->group(function () {
     Route::get('/agent-personas/{agentPersona}', [AgentPersonaController::class, 'show']);
     Route::get('/agent-personas/by-extension/{extension}', [AgentPersonaController::class, 'byExtension']);

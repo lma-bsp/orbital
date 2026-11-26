@@ -61,6 +61,12 @@ trait BelongsToTeamOrSharedPool
 
             $currentTeam = $user->currentTeam;
             if (! $currentTeam) {
+                // Same rule as BelongsToTeam: platform staff keep the
+                // unfiltered view, anyone else sees nothing.
+                if (! (method_exists($user, 'hasAnyPlatformRole') && $user->hasAnyPlatformRole())) {
+                    $builder->whereRaw('1 = 0');
+                }
+
                 return;
             }
 
