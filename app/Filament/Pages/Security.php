@@ -13,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Actions\ConfirmTwoFactorAuthentication;
 use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
 use Laravel\Fortify\Actions\EnableTwoFactorAuthentication;
-use Laravel\Fortify\Actions\UpdateUserPassword;
+use Laravel\Fortify\Contracts\UpdatesUserPasswords;
 use Laravel\Fortify\RecoveryCode;
 
 /**
@@ -166,7 +166,7 @@ class Security extends Page
     public function updatePassword(): void
     {
         try {
-            app(UpdateUserPassword::class)->update(Auth::user(), [
+            app(UpdatesUserPasswords::class)->update(Auth::user(), [
                 'current_password' => $this->currentPassword,
                 'password' => $this->newPassword,
                 'password_confirmation' => $this->newPasswordConfirmation,
