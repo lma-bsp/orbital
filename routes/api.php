@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\OrchestrationController;
 use App\Http\Controllers\Api\AgentPersonaController;
+use App\Http\Controllers\Api\AgentWorkerHeartbeatController;
 use App\Http\Controllers\Api\CallLogController;
 use App\Http\Controllers\Api\CallSessionController;
 use App\Http\Controllers\Api\EdgeDispatcherController;
@@ -15,7 +16,6 @@ use App\Http\Controllers\Api\V1\HandoffController;
 use App\Http\Controllers\Api\VoicemailWebhookController;
 use App\Support\Release;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/user', function (Request $request) {
@@ -35,21 +35,14 @@ Route::get('/version', fn () => Release::toArray());
 
 /**
  * Agent worker liveness heartbeat. The Python worker's docker HEALTHCHECK
- * POSTs to this endpoint every 30 seconds. The dashboard's Agent Worker
- * health card reads this cache key to decide whether the worker is alive.
+ * (agent-worker/heartbeat.py) POSTs to this endpoint every 30 seconds,
+ * with booleans for which provider keys its env holds. The dashboard's
+ * Agent Worker and AI Providers cards read what it stores.
  *
  * Auth is a simple shared-secret bearer token (config('services.agent_worker.token'))
  * because the worker isn't a Sanctum-issued user.
  */
-Route::post('/agent-worker/heartbeat', function (Request $request) {
-    $expected = config('services.agent_worker.token');
-    if (! $expected || $request->bearerToken() !== $expected) {
-        abort(401);
-    }
-    Cache::put('agent_worker:heartbeat', now(), now()->addSeconds(120));
-
-    return ['ok' => true];
-});
+Route::post('/agent-worker/heartbeat', AgentWorkerHeartbeatController::class);
 
 /**
  * Inbound mail webhook. Haraka's SMTP shim POSTs raw RFC822 + envelope
