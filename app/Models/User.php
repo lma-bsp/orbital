@@ -178,20 +178,18 @@ class User extends Authenticatable implements FilamentUser
     /**
      * Check if this user holds the team-less super_admin role.
      *
-     * Temporarily clears the team context so Spatie evaluates the role
-     * at the platform (null team) level regardless of currentTeam.
+     * Asks the database directly instead of going through the cached
+     * `roles` relation. That relation is loaded under whatever Spatie
+     * team context was active at the time (it includes the current
+     * client's own roles), so reusing it here would read a client role
+     * that happens to be named `super_admin` as the platform role, and
+     * would miss the real one when it was loaded under a client team.
      */
     public function isSuperAdmin(): bool
     {
-        $registrar = app(PermissionRegistrar::class);
-        $originalTeamId = $registrar->getPermissionsTeamId();
-
-        $registrar->setPermissionsTeamId(null);
-        try {
-            return $this->hasRole('super_admin');
-        } finally {
-            $registrar->setPermissionsTeamId($originalTeamId);
-        }
+        return $this->platformRoles()
+            ->where(config('permission.table_names.roles').'.name', 'super_admin')
+            ->exists();
     }
 
     /**
@@ -199,18 +197,27 @@ class User extends Authenticatable implements FilamentUser
      *
      * Used to gate access to the operator workspace. Role names are
      * platform-operator-defined, so we check by team_id rather than
-     * by hardcoded role names.
+     * by hardcoded role names. Same fresh query as isSuperAdmin(), so
+     * it neither reads nor replaces the cached `roles` relation.
      */
     public function hasAnyPlatformRole(): bool
+    {
+        return $this->platformRoles()->exists();
+    }
+
+    /**
+     * Roles assigned team-lessly whose role row is itself team-less:
+     * the platform roles. Built with Spatie's team context cleared so
+     * the relation's pivot filter reads `team_id IS NULL`.
+     */
+    private function platformRoles(): BelongsToMany
     {
         $registrar = app(PermissionRegistrar::class);
         $originalTeamId = $registrar->getPermissionsTeamId();
 
         $registrar->setPermissionsTeamId(null);
         try {
-            $this->unsetRelation('roles');
-
-            return $this->roles->isNotEmpty();
+            return $this->roles()->whereNull(config('permission.table_names.roles').'.'.$registrar->teamsKey);
         } finally {
             $registrar->setPermissionsTeamId($originalTeamId);
         }

@@ -109,6 +109,14 @@ class RoleResource extends Resource
                     Forms\Components\TextInput::make('name')
                         ->required()
                         ->maxLength(125)
+                        // An existing role keeps its name (a platform role added later
+                        // may collide with it); new names and renames are checked.
+                        ->rule(fn ($record) => function (string $attribute, mixed $value, \Closure $fail) use ($record): void {
+                            $unchanged = $record && $record->name === $value && $value !== 'super_admin';
+                            if (! $unchanged && static::isReservedRoleName((string) $value)) {
+                                $fail('That name is reserved for platform roles. Pick another.');
+                            }
+                        })
                         ->disabled(fn ($record) => $record && static::isProtectedRole($record))
                         ->dehydrated(fn ($record, $state) => ! ($record && static::isProtectedRole($record)))
                         ->helperText(fn ($record) => $record && static::isProtectedRole($record)
@@ -196,6 +204,30 @@ class RoleResource extends Resource
             ClientProvisioner::ROLE_CLIENT_ADMIN,
             ClientProvisioner::ROLE_CLIENT_USER,
         ], true);
+    }
+
+    /**
+     * Names a client may not give its own roles: `super_admin` and
+     * every platform (team-less) role, compared case-insensitively.
+     * A client role that shares a platform role's name is confusing
+     * at best, and any check that reads the cached `roles` relation
+     * by name would mistake one for the other.
+     */
+    public static function isReservedRoleName(string $name): bool
+    {
+        $name = mb_strtolower(trim($name));
+        if ($name === '') {
+            return false;
+        }
+
+        if ($name === 'super_admin') {
+            return true;
+        }
+
+        return Role::query()
+            ->whereNull('team_id')
+            ->pluck('name')
+            ->contains(fn (string $platformRole) => mb_strtolower($platformRole) === $name);
     }
 
     /**
