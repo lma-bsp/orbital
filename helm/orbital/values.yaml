@@ -233,10 +233,14 @@ agentWorker:
   image:
     name: agent-worker
     tag: ""
-  # Shared bearer token for the worker's heartbeat POST to the Laravel
-  # API (which gates it on the same value). k8s ignores the image's
-  # Docker HEALTHCHECK, so a readiness-probe exec posts it instead.
-  token: "orbital-dev-agent-token"
+  # REQUIRED. Shared bearer token the worker uses for every call to the
+  # Laravel API, including the one that hands it the AI provider keys
+  # and every tenant's prompts. There is no default: rendering fails when
+  # it is empty or set to the old public dev token. Generate with
+  # `openssl rand -hex 32`, keep it in your password manager, and pass
+  # the same value on every upgrade. Rendered into the
+  # <release>-orbital-agent-worker-token Secret, not the app-env ConfigMap.
+  token: ""
   # On SIGTERM (every deploy or config change) a worker stops taking new
   # calls and waits for its live ones to finish. Kubernetes' default 30s
   # would cut those calls; set this to the longest normal AI call plus a

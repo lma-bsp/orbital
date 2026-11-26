@@ -15,6 +15,7 @@
 #     --set global.image.registry=orbital-registry:5001 --set global.image.tag=dev \
 #     --set global.domain=orbital.localhost --set global.appUrl=http://orbital.localhost:8080 \
 #     --set ingress.tls.enabled=false \
+#     --set agentWorker.token="$AGENT_WORKER_TOKEN" \
 #     --set asterisk.edgeExpose.externalAddress=<NODE_IP>
 
 asterisk:

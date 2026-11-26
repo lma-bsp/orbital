@@ -72,7 +72,10 @@ Two obligations that fall on whoever runs Orbital, not on this repository:
 - **Rotate every default credential before you take real calls.** The
   bootstrap process generates development defaults so `sail up` works out of
   the box. `php artisan orbital:status` will tell you which ones are still at
-  their defaults.
+  their defaults, including secrets that were once committed to this
+  repository (the old Helm agent-worker token, the AMI secret in
+  `manager.conf`, the LiveKit key pair and the Valkey password). An install
+  that ran the old agent-worker token must also rotate every AI provider key.
 - **Never expose Asterisk's AMI/ARI ports, the Prometheus or Pushgateway
   endpoints, the Patroni REST API, or the HAProxy stats socket to an untrusted
   network.** The compose files bind them to the internal network for a reason.

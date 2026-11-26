@@ -8,6 +8,7 @@ Secrets (passwords, API keys) live in `secrets-app-secrets` — the
 customer creates that via `kubectl create secret` per
 secrets.example.yaml. This configmap is the public, non-secret half.
 */}}
+{{- include "orbital.checkAppSecrets" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -162,9 +163,8 @@ data:
   LIVEKIT_SIP_HOST: {{ include "orbital.componentName" (list . "livekit-sip") }}
   LIVEKIT_SIP_PORT: {{ .Values.livekitSip.service.sipPort | quote }}
 
-  # Shared secret the agent-worker heartbeat POSTs with; the Laravel
-  # /api/agent-worker/heartbeat route validates against this same value.
-  AGENT_WORKER_TOKEN: {{ .Values.agentWorker.token | quote }}
+  # AGENT_WORKER_TOKEN is not here: it comes from the agent-worker-token
+  # Secret (see templates/agent-worker-token-secret.yaml).
 
   # AGPL section 13 — where the corresponding source for THIS build
   # lives. Anyone running MODIFIED Orbital must repoint this at their

@@ -99,13 +99,21 @@ Orbital's images and chart are public at `cr.calltheory.com/orbital` (set via `g
 helm install orbital oci://cr.calltheory.com/orbital/charts/orbital \
     --version 0.1.1 \
     -n orbital --create-namespace \
-    -f values-vultr-k3s.yaml
+    -f values-vultr-k3s.yaml \
+    --set agentWorker.token="$AGENT_WORKER_TOKEN"
 
 # Or, with the source repo cloned:
 helm install orbital ./helm/orbital \
     -n orbital \
-    -f values-vultr-k3s.yaml
+    -f values-vultr-k3s.yaml \
+    --set agentWorker.token="$AGENT_WORKER_TOKEN"
 ```
+
+`agentWorker.token` is required and has no default: generate it once
+(`openssl rand -hex 32`), keep it in your password manager, and pass the
+same value on every upgrade. The chart stores it in the
+`<release>-orbital-agent-worker-token` Secret and refuses to render when
+it is empty or set to the old public dev token.
 
 To pull from a private mirror instead, point `global.image.registry` / `global.image.repository` at it, create a `docker-registry` secret, and list it in `global.imagePullSecrets`.
 
@@ -131,7 +139,7 @@ kubectl create secret generic orbital-orbital-app-secrets \
     --from-literal=ELEVENLABS_API_KEY="..."
 ```
 
-`templates/secrets.example.yaml` has the full recipe. The chart's `install-{vultr,onprem}.sh` scripts auto-generate this with sensible random values when env vars aren't provided.
+`templates/secrets.example.yaml` has the full recipe. `ASTERISK_AMI_SECRET` (when Asterisk is enabled) and the LiveKit pair are required: the pods read them with `secretKeyRef` and will not start without them, and `helm install`/`upgrade` stops early when the Secret lacks them or still holds a value that was once committed to this repository. The chart's `install-{vultr,onprem}.sh` scripts auto-generate this with sensible random values when env vars aren't provided.
 
 ## Linting + smoke testing
 

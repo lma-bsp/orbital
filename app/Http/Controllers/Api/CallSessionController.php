@@ -13,6 +13,7 @@ use App\Services\Messages\PartialMessagePolicy;
 use App\Services\Messages\SessionMessageWriter;
 use App\Services\Telephony\AiCallTarget;
 use App\Services\Telephony\HandoffDestinations;
+use App\Support\AgentWorkerToken;
 use App\Support\PhoneNumber;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -277,9 +278,7 @@ class CallSessionController extends Controller
 
     protected function isWorker(Request $request): bool
     {
-        $token = (string) config('services.agent_worker.token');
-
-        return $token !== '' && hash_equals($token, (string) $request->bearerToken());
+        return AgentWorkerToken::matches($request->bearerToken());
     }
 
     /**

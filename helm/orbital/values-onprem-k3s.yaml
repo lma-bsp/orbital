@@ -3,7 +3,8 @@
 # Apply with:
 #   helm install orbital ./helm/orbital \
 #     -f ./helm/orbital/values-onprem-k3s.yaml \
-#     --set global.domain=orbital.your-company.com
+#     --set global.domain=orbital.your-company.com \
+#     --set agentWorker.token="$(openssl rand -hex 32)"   # required; keep it
 #
 # Assumes:
 # - K3s installed via the standard `curl | sh` install script (Traefik

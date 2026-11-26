@@ -30,6 +30,9 @@ spec:
              vars only re-read on pod start. */}}
         checksum/failover-tiers: {{ include (print $.Template.BasePath "/configmap-failover-tiers.yaml") . | sha256sum }}
         checksum/app-env: {{ include (print $.Template.BasePath "/configmap-app-env.yaml") . | sha256sum }}
+        {{- if .Values.agentWorker.enabled }}
+        checksum/agent-worker-token: {{ include "orbital.agentWorkerToken" . | sha256sum }}
+        {{- end }}
     spec:
       {{- include "orbital.imagePullSecrets" . | nindent 6 }}
       securityContext:
@@ -52,6 +55,10 @@ spec:
             - secretRef:
                 name: {{ include "orbital.componentName" (list . "app-secrets") }}
           env:
+            {{- if .Values.agentWorker.enabled }}
+            # Validates the worker's bearer token on /api/agent-*.
+            {{- include "orbital.agentWorkerTokenEnv" (list . "AGENT_WORKER_TOKEN") | nindent 12 }}
+            {{- end }}
             {{- range $k, $v := .Values.laravel.env }}
             - name: {{ $k | quote }}
               value: {{ $v | quote }}

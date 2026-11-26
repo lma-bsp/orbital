@@ -70,6 +70,8 @@ spec:
                 name: {{ include "orbital.componentName" (list . "app-env") }}
             - secretRef:
                 name: {{ include "orbital.componentName" (list . "app-secrets") }}
+          env:
+            {{- include "orbital.amiSecretEnv" . | nindent 12 }}
           volumeMounts:
             - name: orbital-config
               mountPath: /etc/asterisk/generated
@@ -99,6 +101,8 @@ spec:
             - secretRef:
                 name: {{ include "orbital.componentName" (list . "app-secrets") }}
           env:
+            # No fallback to the secret baked into the image's manager.conf.
+            {{- include "orbital.amiSecretEnv" . | nindent 12 }}
             - name: ASTERISK_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -161,6 +165,7 @@ spec:
             - secretRef:
                 name: {{ include "orbital.componentName" (list . "app-secrets") }}
           env:
+            {{- include "orbital.amiSecretEnv" . | nindent 12 }}
             # Override the app-env AMI host (the headless service, used by
             # Laravel) so reloads hit the local Asterisk sharing this pod's
             # emptyDir — not a random pod behind the VIP.
