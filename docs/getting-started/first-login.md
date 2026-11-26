@@ -14,10 +14,36 @@ Create the first account from the command line on the server:
 php artisan orbital:make-admin
 ```
 
-It asks for a name, email, and password. On a Kubernetes install, run it
-inside the application pod, and pass `--name`, `--email` and `--password` as
-flags — without them the command prompts, and a non-interactive shell gives
-it nowhere to prompt.
+It asks for a name, email, and password. The password must be at least 8
+characters.
+
+On a Kubernetes install, run it inside the application pod with `-it`, so it
+has a terminal to prompt on:
+
+```
+kubectl --namespace orbital exec -it deploy/orbital-orbital-laravel -- \
+  php artisan orbital:make-admin --name="Your Name" --email=you@example.com
+```
+
+From a script or CI job, where there is no terminal, pipe the password on
+stdin with `--password-stdin`:
+
+```
+printf '%s' "$ADMIN_PASSWORD" | kubectl --namespace orbital exec -i deploy/orbital-orbital-laravel -- \
+  php artisan orbital:make-admin --name="Your Name" --email=you@example.com --password-stdin
+```
+
+Or pass `--generate-password` to have the command make up a 24-character
+password and print it once.
+
+Without a terminal the command never prompts: if the name, email, or password
+is missing it stops at once and says what to pass. `--password=...` still
+works, but it prints a warning, because the password then shows up in shell
+history, process lists and the Kubernetes API server's audit log.
+
+For GitOps installs where nobody execs into a pod, the Helm chart can create
+the first admin from a Secret you create yourself: see `firstAdmin.existingSecret`
+in `helm/orbital/values.yaml`. Delete that Secret after your first login.
 
 That account is a super-admin: it can see and change everything, including
 creating other administrators.
