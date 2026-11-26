@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ClientInvitation;
 use App\Models\User;
+use App\Rules\NoControlCharacters;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -74,7 +75,7 @@ class ClientInvitationController extends Controller
                 // Brand-new user — create the account from the
                 // submitted name + password, log them in, attach role.
                 $data = $request->validate([
-                    'name' => 'required|string|max:255',
+                    'name' => ['required', 'string', 'max:255', new NoControlCharacters],
                     'password' => 'required|string|min:8|confirmed',
                 ]);
                 $user = User::create([

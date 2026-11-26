@@ -6,6 +6,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ClientResource\Pages;
 use App\Models\Team;
+use App\Rules\NoControlCharacters;
 use App\Services\Clients\ClientPermissionGatekeeper;
 use App\Services\Voicemail\VoicemailTranscriber;
 use BackedEnum;
@@ -89,6 +90,7 @@ class ClientResource extends Resource
                             ->icon('heroicon-o-identification')
                             ->schema([
                                 Forms\Components\TextInput::make('name')
+                                    ->rule(new NoControlCharacters)
                                     ->required()
                                     ->maxLength(255),
                                 Forms\Components\TextInput::make('account_number')
