@@ -77,6 +77,12 @@ Two obligations that fall on whoever runs Orbital, not on this repository:
   endpoints, the Patroni REST API, or the HAProxy stats socket to an untrusted
   network.** The compose files bind them to the internal network for a reason.
   The HA overlays assume a private network between nodes.
+- **Keep the SIP edge's management ports private.** Kamailio's JSON-RPC
+  (8090/tcp) and rtpengine's NG control (22222/udp) have no authentication.
+  Kamailio refuses JSON-RPC on every other port and from any source outside
+  its `JSONRPC_ALLOWED_NETS` define (private ranges by default); narrow that
+  to your app/cluster network and firewall both ports at the edge anyway. See
+  [`docs/admin/telephony.md`](docs/admin/telephony.md#edge-access-control).
 
 See [`docs/admin/high-availability.md`](docs/admin/high-availability.md) for
 the network topology these assumptions rest on.
