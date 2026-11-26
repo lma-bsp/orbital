@@ -116,6 +116,8 @@ EDGE=1 ./k3d-build.sh # (re)deploy the cluster side with the edge overlay
 
 `edge-up.sh` discovers a k3d node IP, points Kamailio's dispatcher at the cluster's `asterisk-edge` NodePort, and self-signs a cert for the TLS/WSS listeners. If your softphone runs on Windows or another host (not inside WSL / the docker network), set `EDGE_RTP_ADVERTISE_IP` to a host-reachable address so rtpengine advertises the right media IP.
 
+Kamailio's JSON-RPC (8090) and rtpengine's NG control (22222/udp) have no auth, so they are published on the host's loopback only (`EDGE_JSONRPC_PUBLISH`, `EDGE_RTPENGINE_NG_PUBLISH` override that). The cluster talks to the containers' k3d IPs instead: `EDGE=1 ./k3d-build.sh` points `jsonrpcUrl` at the Kamailio container and `edge-register.sh` points the rtpengine rows at the rtpengine container. Kamailio answers JSON-RPC only on 8090 and only from `EDGE_JSONRPC_ALLOW_NETS` (default: the k3d network's subnet, `10.42.0.0/16` and loopback), which `edge-up.sh` writes into the generated `edge/kamailio.cfg` as `JSONRPC_ALLOWED_NETS`.
+
 Tear the edge down with `./edge-down.sh`. It's independent of the cluster — you can cycle the edge without touching the k3d deployment.
 
 ### Calling in from a desktop SIP app

@@ -264,6 +264,8 @@ telephony:
     wssPort: 7443
     # Every edge VM's JSON-RPC endpoint; the app drains/reloads all of
     # them. jsonrpcUrl (single) is still honoured for older values files.
+    # The edge only answers on 8090 from its JSONRPC_ALLOWED_NETS define
+    # (private ranges by default), set on the edge VMs, not here.
     jsonrpcUrls: []  # e.g. [http://10.1.96.3:8090/jsonrpc, http://10.1.96.4:8090/jsonrpc]
     jsonrpcUrl: ""   # e.g. http://host.k3d.internal:8090/jsonrpc
     # SIP URI Asterisk sends outbound trunk calls through. Blank = the
