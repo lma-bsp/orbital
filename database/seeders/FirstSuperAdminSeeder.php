@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
-use App\Models\Team;
+use App\Actions\Platform\CreateSuperAdmin;
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\PermissionRegistrar;
 
 class FirstSuperAdminSeeder extends Seeder
 {
@@ -22,7 +20,9 @@ class FirstSuperAdminSeeder extends Seeder
     {
         $email = env('SUPER_ADMIN_EMAIL');
         $password = env('SUPER_ADMIN_PASSWORD');
-        $name = env('SUPER_ADMIN_NAME', config('orbital.platform_company', 'Orbital').' Admin');
+        // `?:` rather than env()'s default: an empty value (a Secret's blank
+        // `name` key) should fall back too, not create a nameless user.
+        $name = env('SUPER_ADMIN_NAME') ?: config('orbital.platform_company', 'Orbital').' Admin';
 
         if (! $email || ! $password) {
             $this->command?->warn('Skipping FirstSuperAdminSeeder: SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD not set.');
@@ -30,42 +30,16 @@ class FirstSuperAdminSeeder extends Seeder
             return;
         }
 
-        $user = User::firstOrCreate(
-            ['email' => $email],
-            [
-                'name' => $name,
-                'password' => Hash::make($password),
-                'email_verified_at' => now(),
-            ],
-        );
+        // Same user + "Platform" team + role as `orbital:make-admin`. An
+        // existing account is promoted rather than recreated, so a re-run
+        // with the same env is harmless.
+        $action = app(CreateSuperAdmin::class);
+        $user = User::where('email', $email)->first();
 
-        if (! $user->currentTeam) {
-            // "Platform" rather than Jetstream's "{name}'s Team" default.
-            // Super-admins operate at the platform level, not inside a
-            // tenant — the team exists only because BelongsToTeam needs
-            // a current_team_id. "Platform" reads sensibly anywhere the
-            // name surfaces (portal dashboard, tenant switcher, menus).
-            $team = Team::forceCreate([
-                'user_id' => $user->id,
-                'name' => 'Platform',
-                'personal_team' => true,
-            ]);
-
-            $user->current_team_id = $team->id;
-            $user->save();
-
-            $user->teams()->syncWithoutDetaching([$team->id => ['role' => 'admin']]);
-        }
-
-        $registrar = app(PermissionRegistrar::class);
-        $originalTeamId = $registrar->getPermissionsTeamId();
-        $registrar->setPermissionsTeamId(null);
-
-        try {
-            $user->assignRole('super_admin');
-        } finally {
-            $registrar->setPermissionsTeamId($originalTeamId);
-            $registrar->forgetCachedPermissions();
+        if ($user) {
+            $action->promote($user);
+        } else {
+            $action->create($name, $email, $password);
         }
 
         $this->command?->info("Super-admin ready: {$email}");

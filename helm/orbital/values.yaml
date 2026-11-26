@@ -483,6 +483,29 @@ migrations:
     limits: {cpu: "1000m", memory: "1Gi"}
 
 # ============================================================================
+# First administrator — optional unattended path
+# ============================================================================
+#
+# A fresh install has no login. The default path is to exec into the
+# Laravel pod after install and run `php artisan orbital:make-admin`
+# (NOTES.txt prints the exact command). For GitOps installs where nobody
+# will exec into a pod, name a Secret you create out-of-band:
+#
+#   kubectl -n <namespace> create secret generic orbital-first-admin \
+#     --from-literal=email=you@example.com \
+#     --from-literal=password='<a strong password>' \
+#     --from-literal=name='Your Name'          # optional
+#
+# Its keys reach ONLY the migrate job's seed step, as SUPER_ADMIN_EMAIL /
+# SUPER_ADMIN_PASSWORD / SUPER_ADMIN_NAME — never the Laravel, Horizon or
+# worker pods — and the values here hold only the Secret's name, so the
+# password never shows in `helm get values`. The seed runs once, on the
+# first run that finds an unseeded database (migrations.seedOnInstall), so
+# delete the Secret after your first login: it does nothing afterwards.
+firstAdmin:
+  existingSecret: ""
+
+# ============================================================================
 # Observability integrations — optional, off by default
 # ============================================================================
 #

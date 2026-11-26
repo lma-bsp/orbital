@@ -433,23 +433,36 @@ Open `https://orbital.yourcompany.com`.
 **There is no login yet.** A fresh install seeds roles, permissions and
 reference data, but it does not invent an administrator — the seeder
 that would only acts on `SUPER_ADMIN_EMAIL`/`SUPER_ADMIN_PASSWORD`,
-which the chart deliberately never sets, because a password passed
-through Helm values ends up in `helm get values` for anyone with cluster
-read.
+which the chart never takes from Helm values, because a password passed
+that way ends up in `helm get values` for anyone with cluster read. (For a
+GitOps install, `firstAdmin.existingSecret` can name a Secret you create
+yourself; it reaches only the migrate job's seed step. Delete it after
+your first login.)
 
-Create yours explicitly:
+Create yours explicitly. `-it` gives the command a terminal, and it prompts
+for the password so it never lands in your shell history:
 
 ```bash
-kubectl exec -n orbital deploy/orbital-orbital-laravel -- \
+kubectl exec -it -n orbital deploy/orbital-orbital-laravel -- \
+  php artisan orbital:make-admin \
+    --name="Your Name" \
+    --email=you@yourcompany.com
+```
+
+From a script, pipe the password on stdin instead:
+
+```bash
+printf '%s' "$ADMIN_PASSWORD" | kubectl exec -i -n orbital deploy/orbital-orbital-laravel -- \
   php artisan orbital:make-admin \
     --name="Your Name" \
     --email=you@yourcompany.com \
-    --password='<a strong password>'
+    --password-stdin
 ```
 
-> Pass all three flags. Without them the command prompts interactively,
-> and `kubectl exec` without `-it` gives it no terminal to prompt on —
-> it will simply hang.
+> Without a terminal the command never prompts: a missing name, email or
+> password stops it straight away with what to pass. Avoid
+> `--password='...'`: it works, but the password ends up in shell history,
+> `ps` output and the API server's audit log of the exec request.
 
 Now log in, and:
 

@@ -77,6 +77,32 @@ applies them — run them yourself before serving traffic:
     compromised account, because those replicate to every copy. Turn on
     backups.enabled before carrying real traffic: docs/admin/backups.md
 {{- end }}
+{{- $laravel := include "orbital.componentName" (list . "laravel") }}
+{{- if .Release.IsInstall }}
+{{- if .Values.firstAdmin.existingSecret }}
+
+The first admin was created from Secret `{{ .Values.firstAdmin.existingSecret }}`; delete that Secret now:
+  kubectl --namespace {{ .Release.Namespace }} delete secret {{ .Values.firstAdmin.existingSecret }}
+
+Then sign in at https://{{ .Values.global.domain }}/admin
+{{- else }}
+
+Create the first administrator (a fresh install has no login):
+
+  kubectl --namespace {{ .Release.Namespace }} exec -it deploy/{{ $laravel }} -- \
+    php artisan orbital:make-admin --name="Your Name" --email=you@example.com
+
+  It prompts for the password. In a script, pipe it on stdin instead:
+
+  printf '%s' "$ADMIN_PASSWORD" | kubectl --namespace {{ .Release.Namespace }} exec -i deploy/{{ $laravel }} -- \
+    php artisan orbital:make-admin --name="Your Name" --email=you@example.com --password-stdin
+
+Then sign in at https://{{ .Values.global.domain }}/admin
+{{- end }}
+{{- else }}
+
+No login yet? kubectl --namespace {{ .Release.Namespace }} exec -it deploy/{{ $laravel }} -- php artisan orbital:make-admin
+{{- end }}
 
 Next:
   - Create the secrets per templates/secrets.example.yaml

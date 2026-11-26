@@ -1,3 +1,6 @@
+{{- if and .Values.firstAdmin.existingSecret (not (and .Values.migrations.enabled .Values.migrations.seedOnInstall)) }}
+{{- fail "firstAdmin.existingSecret needs migrations.enabled and migrations.seedOnInstall: the first admin is created by the migrate job's seed step." }}
+{{- end }}
 {{- if .Values.migrations.enabled -}}
 {{/*
 Schema migrations — the step that otherwise has to be remembered.
@@ -137,7 +140,27 @@ spec:
                 A seeded database is never re-seeded — that would fight
                 an operator's own edits to the same reference data.
               */}}
+              {{- if .Values.firstAdmin.existingSecret }}
+              {{- /*
+                firstAdmin.existingSecret: the Secret is mounted as files
+                and turned into SUPER_ADMIN_* for this one process only,
+                so neither migrate nor anything else in this job (let
+                alone the app pods) carries the password in its
+                environment. The mount is optional: deleting the Secret
+                after first login, as NOTES.txt says to, must not break
+                the next upgrade's job.
+              */}}
+              if [ -s /run/orbital/first-admin/email ] && [ -s /run/orbital/first-admin/password ]; then
+                SUPER_ADMIN_EMAIL="$(cat /run/orbital/first-admin/email)" \
+                SUPER_ADMIN_PASSWORD="$(cat /run/orbital/first-admin/password)" \
+                SUPER_ADMIN_NAME="$(cat /run/orbital/first-admin/name 2>/dev/null || true)" \
+                  php artisan orbital:seed-if-empty
+              else
+                php artisan orbital:seed-if-empty
+              fi
+              {{- else }}
               php artisan orbital:seed-if-empty
+              {{- end }}
               {{- end }}
               {{/*
                 Both ends of the Asterisk ↔ LiveKit SIP path (Asterisk's
@@ -155,6 +178,22 @@ spec:
                 extension save.
               */}}
               php artisan orbital:generate-config || echo "Dialplan regeneration failed; saving any DID or extension regenerates it."
+          {{- if and .Values.migrations.seedOnInstall .Values.firstAdmin.existingSecret }}
+          volumeMounts:
+            - name: first-admin
+              mountPath: /run/orbital/first-admin
+              readOnly: true
+          {{- end }}
           resources:
             {{- toYaml .Values.migrations.resources | nindent 12 }}
+      {{- if and .Values.migrations.seedOnInstall .Values.firstAdmin.existingSecret }}
+      volumes:
+        - name: first-admin
+          secret:
+            secretName: {{ .Values.firstAdmin.existingSecret }}
+            optional: true
+            # Group-readable: files are root-owned, the pod runs as
+            # uid 1000 with fsGroup 1000.
+            defaultMode: 0440
+      {{- end }}
 {{- end }}
