@@ -12,6 +12,7 @@ use App\Services\CertificateService;
 use App\Services\Telephony\KamailioService;
 use App\Services\Telephony\Realtime\OutboundTrunkAuditor;
 use App\Services\Telephony\RtpengineService;
+use App\Support\AiProviderReadiness;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
@@ -180,6 +181,7 @@ class SystemHealthService
             $this->probeResultToCheck($probes['livekit'], 'livekit', 'LiveKit', 'Media', 'LiveKit WebRTC server', 'heroicon-o-signal'),
             $this->checkLivekitSip($probes),
             $this->checkAgentWorker(),
+            $this->checkAiProviders(),
             $this->probeResultToCheck($probes['icecast'], 'icecast', 'Icecast', 'Media', 'Streaming hold music server', 'heroicon-o-musical-note', optional: true),
             $this->checkSipTrunks(),
             $this->probeResultToCheck($probes['prometheus'], 'prometheus', 'Prometheus', 'Observability', 'Metrics collector for Grafana', 'heroicon-o-chart-bar'),
@@ -793,6 +795,61 @@ class SystemHealthService
                 : "Last heartbeat {$age}s ago",
             metrics: ['Last seen' => "{$age}s ago"],
             icon: 'heroicon-o-cpu-chip',
+        );
+    }
+
+    /**
+     * AI provider keys the configuration needs (see
+     * AiProviderReadiness). Never probes the providers: that would be
+     * an outbound call per provider on every dashboard refresh.
+     */
+    private function checkAiProviders(): HealthCheck
+    {
+        $report = AiProviderReadiness::report();
+        $needed = array_filter($report, fn (array $row): bool => $row['status'] !== AiProviderReadiness::NOT_NEEDED);
+        $problems = AiProviderReadiness::problems($report);
+
+        $metrics = [];
+        foreach ($needed as $row) {
+            $metrics[$row['label']] = $row['status'];
+        }
+
+        if ($needed === []) {
+            return new HealthCheck(
+                key: 'ai_providers',
+                name: 'AI Providers',
+                category: 'AI',
+                status: HealthCheck::OK,
+                message: 'No AI configured, no provider keys needed',
+                icon: 'heroicon-o-key',
+            );
+        }
+
+        if ($problems === []) {
+            return new HealthCheck(
+                key: 'ai_providers',
+                name: 'AI Providers',
+                category: 'AI',
+                status: HealthCheck::OK,
+                message: 'Every needed provider key is set',
+                metrics: $metrics,
+                icon: 'heroicon-o-key',
+            );
+        }
+
+        $down = in_array(AiProviderReadiness::LEVEL_DOWN, array_column($problems, 'level'), true);
+
+        return new HealthCheck(
+            key: 'ai_providers',
+            name: 'AI Providers',
+            category: 'AI',
+            status: $down ? HealthCheck::DOWN : HealthCheck::WARN,
+            message: 'Missing key: '.implode('; ', array_map(
+                fn (array $row): string => $row['label'].' ('.implode(', ', $row['reasons']).')',
+                $problems,
+            )),
+            metrics: $metrics,
+            icon: 'heroicon-o-key',
         );
     }
 
