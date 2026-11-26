@@ -30,7 +30,11 @@ services:
         --port-min=23000 --port-max=23099
         --log-level=6
     ports:
-      - "22222:22222/udp"
+      # NG control has no auth: anyone who can reach it can open relays
+      # or tear down calls. Loopback only; Kamailio reaches it on the k3d
+      # network and the app's health check goes through Kamailio or the
+      # container's k3d IP (see ../edge-register.sh).
+      - "${EDGE_RTPENGINE_NG_PUBLISH:-127.0.0.1:22222}:22222/udp"
       - "23000-23099:23000-23099/udp"
     restart: unless-stopped
 
@@ -45,8 +49,8 @@ services:
         aliases: [kamailio]
     volumes:
       - ./dispatcher.list:/etc/kamailio/dispatcher.list
-      # edge-up.sh swaps in a generated copy that advertises a public IP
-      # when EDGE_SIP_ADVERTISE_IP is set (softphone outside the host).
+      # edge-up.sh swaps in a generated copy with this edge's defines
+      # (JSON-RPC source networks, public advertise address).
       - ${KAMAILIO_CFG:-../../docker/kamailio/kamailio.cfg}:/etc/kamailio/kamailio.cfg
       - ../../docker/kamailio/tls.cfg:/etc/kamailio/tls.cfg
       - ./tls:/etc/tls:ro
@@ -55,10 +59,12 @@ services:
       - "5060:5060/tcp"
       - "5061:5061/tcp"
       - "7443:7443/tcp"
-      # JSON-RPC — cluster reaches via host.k3d.internal. Override with
-      # EDGE_JSONRPC_PUBLISH (e.g. 127.0.0.1:18090) when 8090 is taken on
-      # the host; then point jsonrpcUrl at the container IP:8090 instead.
-      - "${EDGE_JSONRPC_PUBLISH:-8090}:8090/tcp"
+      # JSON-RPC (no auth of its own; Kamailio only answers it on 8090
+      # from JSONRPC_ALLOWED_NETS). Published on loopback for debugging;
+      # the cluster reaches the container's k3d IP:8090 directly
+      # (k3d-build.sh EDGE=1 points jsonrpcUrl there). Override with
+      # EDGE_JSONRPC_PUBLISH (e.g. 127.0.0.1:18090) when 8090 is taken.
+      - "${EDGE_JSONRPC_PUBLISH:-127.0.0.1:8090}:8090/tcp"
     depends_on:
       - rtpengine-1
     restart: unless-stopped

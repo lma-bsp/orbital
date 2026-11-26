@@ -89,6 +89,15 @@ if [ "${EDGE:-0}" = "1" ]; then
     -f "${REPO_ROOT}/helm/orbital/values-local-edge.yaml"
     --set "asterisk.edgeExpose.externalAddress=${NODE_IP}"
   )
+  # The edge publishes JSON-RPC on the host's loopback only; the app
+  # reaches the Kamailio container's k3d IP instead.
+  KAM_IP="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' orbital-edge-kamailio-1 2>/dev/null | awk '{print $1}')"
+  if [ -n "${KAM_IP}" ]; then
+    echo "==> app reaches edge JSON-RPC at ${KAM_IP}:8090"
+    EDGE_ARGS+=(--set "telephony.kamailio.jsonrpcUrl=http://${KAM_IP}:8090/jsonrpc")
+  else
+    echo "WARN: edge Kamailio container not running; jsonrpcUrl left at the values default" >&2
+  fi
 fi
 
 echo "==> helm upgrade ${RELEASE} onto tag ${TAG}"

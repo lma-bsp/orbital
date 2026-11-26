@@ -140,6 +140,56 @@ one that stops answering as down on its own. That is automatic detection
 sitting underneath the manual drain controls — a node that dies without anyone
 draining it is pulled from the pool without an operator doing anything.
 
+### Edge access control
+
+Kamailio's management API (JSON-RPC at `/jsonrpc`) and rtpengine's NG
+control port have no authentication of their own. Anyone who can call them
+can add a dispatcher destination (and then relay calls through your
+carriers), drain your backends, or read live call metadata. The edge
+protects them like this:
+
+- **JSON-RPC answers only on port 8090, and only to `JSONRPC_ALLOWED_NETS`.**
+  Kamailio's HTTP hook fires on every TCP and TLS listener, so the config
+  refuses JSON-RPC (HTTP 403) on 5060, 5061 and 7443 and from any source
+  outside that list. The default is loopback plus the private ranges
+  (`127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16`), which covers the
+  compose `telephony` network and a cluster reaching the edge over a private
+  network. Narrow it to the networks your app pods reach the edge from (on
+  Kubernetes that is the node network, since pod traffic leaving the cluster
+  is usually source-NATed to the node address; include the pod CIDR if your
+  CNI doesn't do that). Set it when starting Kamailio:
+
+  ```
+  kamailio ... -A 'JSONRPC_ALLOWED_NETS="10.1.96.0/20"'
+  ```
+
+  or with a `#!define JSONRPC_ALLOWED_NETS "..."` line at the top of the
+  edge's `kamailio.cfg`. The value is a comma-separated list of CIDRs.
+- **rtpengine's NG control port (22222/udp) stays on the private network.**
+  Kamailio and the app reach it there; don't publish it.
+- **Internal identities are refused from outside.** An INVITE from any
+  source other than an Asterisk backend (dispatcher set 1) gets a 403 when
+  its From user is `livekit` or starts with `trunk_`, or its request URI
+  starts with `handoff-`. Those identities belong to the LiveKit SIP bridge
+  and carrier trunks, which talk to Asterisk directly, never through the
+  edge.
+- **In-dialog requests are relayed only for calls the edge knows.** A
+  request with a To tag is relayed when it comes from Asterisk, belongs to a
+  dialog Kamailio set up, or is headed to an Asterisk backend anyway (a
+  phone's BYE for a call that started before an edge restart). Anything else
+  gets a 403, so nobody can bounce requests off the edge's address using its
+  Record-Route.
+
+Firewall 8090 and 22222 at the edge hosts as well; the config checks are the
+second line of defence, not the first.
+
+**Rolling out.** The edge VMs run their own copy of `kamailio.cfg`,
+installed by orbital-setup, not by the Helm chart. After upgrading, roll the
+new config (and your `JSONRPC_ALLOWED_NETS`) out to every edge VM and
+restart Kamailio there, one node at a time. Then check from outside that
+`curl -X POST http://<edge>:5060/jsonrpc -d '{"jsonrpc":"2.0","id":1,"method":"core.version"}'`
+returns 403, and that **Telephony → SIP Proxy** still shows the edge healthy.
+
 Three admin surfaces cover the edge.
 
 ### Asterisk backends

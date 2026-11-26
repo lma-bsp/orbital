@@ -499,6 +499,12 @@ helm upgrade orbital oci://<your-registry-host>/orbital/charts/orbital \
 Point your carrier's DIDs at the edge VMs' floating IP, not at the
 Kubernetes load balancer.
 
+Kamailio answers that control interface only on port 8090 and only from
+the networks in its `JSONRPC_ALLOWED_NETS` define (the private ranges by
+default). Set it on the edge VMs to the VPC subnet your cluster nodes are
+in, and keep 8090 and rtpengine's 22222/udp closed to the internet. See
+[Edge access control](../admin/telephony.md#edge-access-control).
+
 ---
 
 ## Upgrading later

@@ -14,8 +14,15 @@
 #   EDGE_RTP_ADVERTISE_IP — set to a host-reachable IP when the softphone
 #     runs on Windows/another host; leave empty for a softphone on the
 #     k3d Docker network / WSL (rtpengine then advertises its own IP).
-#   EDGE_JSONRPC_PUBLISH — host binding for Kamailio's JSON-RPC (8090), e.g.
-#     127.0.0.1:18090 when 8090 is already in use on the host.
+#   EDGE_JSONRPC_PUBLISH — host binding for Kamailio's JSON-RPC (8090).
+#     Default 127.0.0.1:8090 (loopback only; the cluster reaches the
+#     container's k3d IP directly). Use e.g. 127.0.0.1:18090 when 8090 is
+#     already in use on the host.
+#   EDGE_JSONRPC_ALLOW_NETS — source CIDRs Kamailio answers JSON-RPC from
+#     (its JSONRPC_ALLOWED_NETS define). Default: the k3d Docker network's
+#     subnet, k3s's pod CIDR 10.42.0.0/16 and loopback.
+#   EDGE_RTPENGINE_NG_PUBLISH — host binding for rtpengine's NG control
+#     port (22222/udp). Default 127.0.0.1:22222; it has no auth.
 #   EDGE_SIP_ADVERTISE_IP — public IP Kamailio puts in Via/Record-Route on
 #     its 5060 listeners, for a softphone outside the host (otherwise its
 #     ACK/BYE go to the container's 172.x address). Defaults to
@@ -73,10 +80,27 @@ else
     echo "==> rtpengine advertises its k3d Docker IP (softphone must share that network/WSL)"
 fi
 
-# 5. SIP advertise address. Kamailio listens on 0.0.0.0, so without an
-#    advertise its Record-Route carries the container IP. Generate a copy
-#    of the shared kamailio.cfg with the public IP on the 5060 listeners
-#    (the shared file itself is left alone: production edges are on VMs).
+# 5. Generated kamailio.cfg: a copy of the shared docker/kamailio/kamailio.cfg
+#    with this edge's defines (the shared file itself is left alone:
+#    production edges are on VMs).
+#
+#    JSONRPC_ALLOWED_NETS: who may use the JSON-RPC management API. The
+#    app pods reach the container's k3d IP from a k3d node address; the
+#    host's published port arrives from the network's gateway.
+if [ -z "${EDGE_JSONRPC_ALLOW_NETS:-}" ]; then
+    K3D_SUBNETS="$(docker network inspect "${K3D_NETWORK}" -f '{{range .IPAM.Config}}{{.Subnet}},{{end}}' 2>/dev/null || true)"
+    [ -n "${K3D_SUBNETS}" ] || { echo "ERROR: could not read the subnet of Docker network ${K3D_NETWORK}" >&2; exit 1; }
+    EDGE_JSONRPC_ALLOW_NETS="${K3D_SUBNETS}10.42.0.0/16,127.0.0.0/8"
+fi
+case "${EDGE_JSONRPC_ALLOW_NETS}" in
+    *[!0-9a-fA-F.:/,]*) echo "ERROR: EDGE_JSONRPC_ALLOW_NETS must be comma-separated CIDRs" >&2; exit 1 ;;
+esac
+echo "==> JSON-RPC answers ${EDGE_JSONRPC_ALLOW_NETS} on 8090"
+CFG_SED=(-e "1a #!define JSONRPC_ALLOWED_NETS \"${EDGE_JSONRPC_ALLOW_NETS}\"")
+
+#    SIP advertise address. Kamailio listens on 0.0.0.0, so without an
+#    advertise its Record-Route carries the container IP; put the public
+#    IP on the 5060 listeners.
 EDGE_SIP_ADVERTISE_IP="${EDGE_SIP_ADVERTISE_IP:-${EDGE_RTP_ADVERTISE_IP:-}}"
 if [ -n "${EDGE_SIP_ADVERTISE_IP}" ]; then
     # PIN_INDIALOG_TO_BACKEND: Asterisk's Contact is its pod IP, which
@@ -88,30 +112,25 @@ if [ -n "${EDGE_SIP_ADVERTISE_IP}" ]; then
     # it, so the Path Asterisk stores, and the calls it sends them, come
     # back here. Must be an IP: Kamailio resolves it at startup and the
     # container can't see cluster DNS.
-    INTERNAL_SED=()
     if [ -n "${EDGE_INTERNAL_ADVERTISE:-}" ]; then
-        INTERNAL_SED=(-e "/^listen=tls:0\.0\.0\.0:7443\$/a listen=udp:0.0.0.0:5080 advertise ${EDGE_INTERNAL_ADVERTISE}:5080"
-                      -e '1a #!define EDGE_INTERNAL_SOCKET udp:0.0.0.0:5080')
+        CFG_SED+=(-e "/^listen=tls:0\.0\.0\.0:7443\$/a listen=udp:0.0.0.0:5080 advertise ${EDGE_INTERNAL_ADVERTISE}:5080"
+                  -e '1a #!define EDGE_INTERNAL_SOCKET udp:0.0.0.0:5080')
         echo "==> browser softphones reach Asterisk via ${EDGE_INTERNAL_ADVERTISE}:5080"
     fi
-    sed -E -e "s|^listen=(udp\|tcp):0\.0\.0\.0:5060\$|listen=\1:0.0.0.0:5060 advertise ${EDGE_SIP_ADVERTISE_IP}:5060|" \
-        -e '1a #!define PIN_INDIALOG_TO_BACKEND' \
-        -e '1a #!define RTPENGINE_DIRECTIONS' \
-        "${INTERNAL_SED[@]}" \
-        "${SCRIPT_DIR}/../docker/kamailio/kamailio.cfg" > "${EDGE_DIR}/kamailio.cfg"
-    export KAMAILIO_CFG="./kamailio.cfg"
+    CFG_SED+=(-e "s|^listen=(udp\|tcp):0\.0\.0\.0:5060\$|listen=\1:0.0.0.0:5060 advertise ${EDGE_SIP_ADVERTISE_IP}:5060|"
+              -e '1a #!define PIN_INDIALOG_TO_BACKEND'
+              -e '1a #!define RTPENGINE_DIRECTIONS')
     echo "==> Kamailio advertises ${EDGE_SIP_ADVERTISE_IP}:5060"
-else
-    rm -f "${EDGE_DIR}/kamailio.cfg"
-    unset KAMAILIO_CFG
 fi
+sed -E "${CFG_SED[@]}" "${SCRIPT_DIR}/../docker/kamailio/kamailio.cfg" > "${EDGE_DIR}/kamailio.cfg"
+export KAMAILIO_CFG="./kamailio.cfg"
 
 # 6. Up (build kamailio image on first run).
 echo "==> starting edge on ${K3D_NETWORK}"
 docker compose -f "${EDGE_DIR}/docker-compose.yml" up -d --build
 
 echo
-echo "Edge up. Published on the host: SIP 5060(udp/tcp), TLS 5061, WSS 7443, JSON-RPC ${EDGE_JSONRPC_PUBLISH:-8090}, RTP 23000-23099."
+echo "Edge up. Published on the host: SIP 5060(udp/tcp), TLS 5061, WSS 7443, JSON-RPC ${EDGE_JSONRPC_PUBLISH:-127.0.0.1:8090}, RTP 23000-23099."
 echo "Dispatcher -> sip:${NODE_IP}:${SIP_NODEPORT}"
 echo
 echo "Next: run ./local/edge-register.sh to seed the rtpengine + Asterisk-backend rows"
