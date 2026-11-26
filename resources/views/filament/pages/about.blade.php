@@ -2,6 +2,7 @@
     $release = $this->getRelease();
     $support = $this->getSupport();
     $environment = $this->getEnvironment();
+    $security = $this->getSecurity();
 @endphp
 
 <x-filament-panels::page>
@@ -23,6 +24,17 @@
                     <dt style="color: var(--gray-500);">{{ $label }}</dt>
                     <dd>{{ $value }}</dd>
                 @endforeach
+
+                <dt style="color: var(--gray-500);">Security</dt>
+                <dd>
+                    @if ($security['security_txt_url'])
+                        <a href="{{ $security['security_txt_url'] }}" target="_blank" rel="noopener" style="text-decoration: underline;">
+                            Report a security problem
+                        </a>
+                    @else
+                        <span style="color: var(--gray-500);">No security contact set (Platform Settings → Security)</span>
+                    @endif
+                </dd>
             </dl>
         </x-filament::section>
 

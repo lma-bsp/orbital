@@ -73,7 +73,7 @@ final class SettingsRegistry
             'security' => [
                 'label' => 'Security',
                 'icon' => 'heroicon-o-lock-closed',
-                'description' => 'Password hashing and other platform-wide security tuning.',
+                'description' => 'Password hashing, other platform-wide security tuning, and where people report a security problem with this installation (/.well-known/security.txt).',
             ],
             'broadcasting' => [
                 'label' => 'Broadcasting',
@@ -526,6 +526,22 @@ final class SettingsRegistry
                 'config_key' => 'hashing.bcrypt.rounds',
                 'placeholder' => '12',
                 'helper' => 'Cost factor for password hashing. Each +1 roughly doubles hash time. Laravel default is 12; raise to 13–14 on fast servers for a modest security bump. Existing password hashes aren\'t re-hashed retroactively — only new logins/password changes pick up the new cost.',
+            ],
+            'orbital.security.contact' => [
+                'section' => 'security',
+                'label' => 'Security contact',
+                'type' => 'text',
+                'config_key' => 'orbital.security.contact',
+                'placeholder' => 'security@example.com',
+                'helper' => 'Where people report a security problem with this installation: an email address or an https:// page. Published as Contact in /.well-known/security.txt, which is only served once this is set. Use your own address — Orbital upstream can fix bugs in Orbital, but not a problem with your deployment.',
+            ],
+            'orbital.security.policy_url' => [
+                'section' => 'security',
+                'label' => 'Security policy URL',
+                'type' => 'url',
+                'config_key' => 'orbital.security.policy_url',
+                'placeholder' => 'https://example.com/security',
+                'helper' => 'Optional https:// page describing how you handle reports. Published as Policy in security.txt.',
             ],
 
             // ─── Broadcasting ──────────────────────────────────────────

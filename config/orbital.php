@@ -94,6 +94,13 @@ return [
     'security' => [
         'two_factor_required' => (bool) env('TWO_FACTOR_REQUIRED', true),
         'two_factor_grace_days' => (int) env('TWO_FACTOR_GRACE_DAYS', 7),
+
+        // Where people report a security problem with THIS deployment,
+        // published at /.well-known/security.txt (RFC 9116). An email
+        // address or an https URL; unset means no security.txt is served.
+        // Set from Platform Settings → Security.
+        'contact' => env('SECURITY_CONTACT'),
+        'policy_url' => env('SECURITY_POLICY_URL'),
     ],
 
     /*
