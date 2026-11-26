@@ -11,6 +11,7 @@ use App\Models\EmailRoutingRule;
 use App\Models\EmailThread;
 use App\Services\Mail\InboundRouter;
 use App\Services\Mail\ThreadResolver;
+use App\Support\AiReplyHandback;
 use BeyondCode\Mailbox\InboundEmail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -178,7 +179,14 @@ class ProcessInboundEmailJob implements ShouldQueue
                 // queue. The job compiles the persona, calls the
                 // LLM, and sends via OutboundReplyService.
                 if ($thread->assigned_agent_persona_id !== null && $message->direction === 'inbound') {
-                    ProcessEmailWithAgentJob::dispatch($thread->id)->onQueue('inbound-mail');
+                    // Without a key the reply job can only fail. Say so
+                    // on the thread instead, so the operator who sees it
+                    // in the inbox knows no AI reply is coming.
+                    if (AiReplyHandback::anthropicConfigured()) {
+                        ProcessEmailWithAgentJob::dispatch($thread->id)->onQueue('inbound-mail');
+                    } else {
+                        AiReplyHandback::toHuman($thread, AiReplyHandback::NO_ANTHROPIC_KEY);
+                    }
                 }
             }
 

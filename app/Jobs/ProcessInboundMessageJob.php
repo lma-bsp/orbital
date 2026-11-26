@@ -12,6 +12,7 @@ use App\Services\Messaging\InboundMessage;
 use App\Services\Messaging\InboundMessageRouter;
 use App\Services\Messaging\MessageThreadResolver;
 use App\Services\Messaging\OptOutRegistry;
+use App\Support\AiReplyHandback;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -166,7 +167,7 @@ class ProcessInboundMessageJob implements ShouldQueue
             return;
         }
 
-        $this->maybeAutoReply($thread->id);
+        $this->maybeAutoReply($thread);
     }
 
     /**
@@ -233,12 +234,27 @@ class ProcessInboundMessageJob implements ShouldQueue
      * client having asked for it is a far worse failure than a slow
      * human reply. Both have to be deliberate.
      */
-    private function maybeAutoReply(int $threadId): void
+    private function maybeAutoReply(MessageThread $thread): void
     {
         if (! config('messaging.auto_reply_enabled', false)) {
             return;
         }
 
-        ProcessMessageWithAgentJob::dispatch($threadId);
+        // Without a key the reply job can only fail. When a persona
+        // would have answered, say so on the thread so the operator
+        // knows no AI reply is coming; a human-worked queue needs no
+        // note at all.
+        if (! AiReplyHandback::anthropicConfigured()) {
+            $hasPersona = $thread->assigned_agent_persona_id !== null
+                || $thread->queue?->overflow_agent_persona_id !== null;
+
+            if ($hasPersona) {
+                AiReplyHandback::toHuman($thread, AiReplyHandback::NO_ANTHROPIC_KEY);
+            }
+
+            return;
+        }
+
+        ProcessMessageWithAgentJob::dispatch($thread->id);
     }
 }

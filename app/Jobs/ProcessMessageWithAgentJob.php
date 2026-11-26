@@ -9,6 +9,7 @@ use App\Models\MessageThread;
 use App\Services\Flows\AgentFlowCompiler;
 use App\Services\Messaging\OptOutRegistry;
 use App\Services\Messaging\OutboundMessageService;
+use App\Support\AiReplyHandback;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -110,6 +111,14 @@ class ProcessMessageWithAgentJob implements ShouldQueue
             return;
         }
 
+        // Not something a retry fixes: fail now and let failed() hand
+        // the thread back, instead of three attempts over six minutes.
+        if (! AiReplyHandback::anthropicConfigured()) {
+            $this->fail(new RuntimeException('Anthropic API key not configured'));
+
+            return;
+        }
+
         $compiled = $compiler->compile($persona);
 
         $history = $this->projectHistory($thread);
@@ -148,6 +157,32 @@ class ProcessMessageWithAgentJob implements ShouldQueue
             'thread_id' => $this->threadId,
             'persona_id' => $persona->id,
         ]);
+    }
+
+    /**
+     * After the last attempt (or an immediate fail()): leave the thread
+     * to the operators and say why no AI reply came.
+     */
+    public function failed(?Throwable $e = null): void
+    {
+        $thread = MessageThread::withoutGlobalScopes()->find($this->threadId);
+
+        if (! $thread) {
+            return;
+        }
+
+        if (! AiReplyHandback::anthropicConfigured()) {
+            AiReplyHandback::toHuman($thread, AiReplyHandback::NO_ANTHROPIC_KEY);
+
+            return;
+        }
+
+        AiReplyHandback::toHuman(
+            $thread,
+            'AI reply failed; a person needs to answer this thread',
+            AiReplyHandback::KIND_FAILED,
+            $e?->getMessage(),
+        );
     }
 
     /**

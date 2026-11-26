@@ -172,6 +172,7 @@ class ViewEmailThread extends Page implements HasTable
                     ->formatStateUsing(fn (string $state, ConversationActivity $record): string => match ($state) {
                         'replied' => 'Replied to '.collect($record->metadata['to'] ?? [])->map(fn ($a) => is_array($a) ? ($a['address'] ?? '') : $a)->filter()->join(', '),
                         'forwarded' => 'Forwarded to '.($record->metadata['to'] ?? 'unknown'),
+                        'note' => (string) ($record->metadata['note'] ?? 'Note'),
                         default => ucfirst($state),
                     }),
                 Tables\Columns\TextColumn::make('created_at')
