@@ -14,13 +14,16 @@ STOP_TIMEOUT ?= 60
 COMPOSE      ?= docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help up down stop start restart status health logs ps fix-valkey
+.PHONY: help secrets up down stop start restart status health logs ps fix-valkey
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-up: ## Start the whole stack (detached). depends_on ordering brings the data tier up first.
+secrets: ## Fill empty AMI / LiveKit / Valkey secrets in .env (never overwrites set values).
+	sh bin/orbital-secrets
+
+up: secrets ## Start the whole stack (detached). depends_on ordering brings the data tier up first.
 	$(COMPOSE) up -d
 
 down: ## Graceful stop + remove containers (volumes kept).

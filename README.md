@@ -53,6 +53,7 @@ three-environment story — dev, staging, production — see
 cp .env.example .env
 composer install
 php artisan key:generate
+sh bin/orbital-secrets       # AMI, LiveKit and Valkey secrets; Compose won't start without them
 ./vendor/bin/sail up -d
 pnpm install
 php artisan migrate --seed
@@ -95,7 +96,7 @@ Filament panel based on their role:
 - `app/Livewire/` — softphone, compiled-flow viewer, chat console
 - `agent-worker/` — Python LiveKit agent worker
 - `docker/asterisk/` — Asterisk 22 Dockerfile, baked configs, entrypoint
-- `docker/livekit/` — LiveKit server + SIP bridge configs
+- `docker-compose.yml` `configs:` — LiveKit server + SIP bridge configs (rendered from `.env`)
 - `helm/orbital/` — Helm chart packaged on tag push to Harbor OCI
 - `local/` — k3d helpers for chart iteration
 - `scripts/build-and-push.sh` — local image build + push to Harbor

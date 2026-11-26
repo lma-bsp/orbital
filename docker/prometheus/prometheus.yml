@@ -129,7 +129,7 @@ scrape_configs:
   # Telephony / AI
   # ────────────────────────────────────────────────────────────────
 
-  # LiveKit built-in metrics (prometheus.port in livekit.yaml):
+  # LiveKit built-in metrics (prometheus.port in the livekit-server config in docker-compose.yml):
   # rooms, participants, packet loss, egress. Phase D builds the
   # LiveKit/AI dashboard on these.
   - job_name: livekit

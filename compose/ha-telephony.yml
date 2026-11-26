@@ -2,8 +2,8 @@
 #
 # Second instances of Asterisk, LiveKit, the LiveKit SIP bridge,
 # and Icecast. All are internal-only in dev (no host ports) since
-# the primary instance keeps the 5038/8089/10000-10099/7880/5069
-# host bindings. In production each node gets its own host with
+# the primary instance keeps the 8089/10000-10099 host bindings and
+# the loopback-only 5038/7880/5069 ones. In production each node gets its own host with
 # the full port set.
 #
 # Usage:
@@ -42,6 +42,9 @@ services:
             # SIP Proxy page can show how many dynamic registrations
             # THIS Asterisk actually holds vs its sibling.
             ASTERISK_NODE_NAME: 'asterisk-2'
+            # Same AMI secret as asterisk-1 and Laravel (one cluster-wide
+            # login); the entrypoint refuses to start without it.
+            ASTERISK_AMI_SECRET: '${ASTERISK_AMI_SECRET:?ASTERISK_AMI_SECRET is not set; run bin/orbital-secrets}'
             # Voicemail-by-email relay (mirrors asterisk-1).
             MAIL_HOST: '${MAIL_HOST:-mailpit}'
             MAIL_PORT: '${MAIL_PORT:-1025}'
@@ -74,14 +77,16 @@ services:
         restart: unless-stopped
 
     # Second LiveKit node. Both nodes share room state via Valkey
-    # (already configured in docker/livekit/livekit.yaml) so a room
+    # (the `livekit-server` config in docker-compose.yml) so a room
     # created on one node can migrate to the other if load or
     # failover demands it. Host ports stay on the primary.
     livekit-2:
         image: 'livekit/livekit-server:latest'
         command: --config /etc/livekit.yaml --bind 0.0.0.0
-        volumes:
-            - './docker/livekit/livekit.yaml:/etc/livekit.yaml:ro'
+        configs:
+            # Rendered from .env; defined in docker-compose.yml.
+            - source: livekit-server
+              target: /etc/livekit.yaml
         networks:
             # See livekit (base): needs `sail` to reach haproxy:6379.
             - telephony
@@ -92,8 +97,9 @@ services:
     # LiveKit and use the Redis backend for call state.
     livekit-sip-2:
         image: 'livekit/sip:latest'
-        volumes:
-            - './docker/livekit/sip-config.yaml:/sip/config.yaml:ro'
+        configs:
+            - source: livekit-sip
+              target: /sip/config.yaml
         networks:
             # See livekit-sip (base): needs `sail` for haproxy:6379.
             - telephony

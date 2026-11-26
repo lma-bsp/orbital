@@ -80,3 +80,32 @@ Two obligations that fall on whoever runs Orbital, not on this repository:
 
 See [`docs/admin/high-availability.md`](docs/admin/high-availability.md) for
 the network topology these assumptions rest on.
+
+## Past exposures
+
+Until November 2026 the Docker Compose files shipped three fixed
+infrastructure secrets, committed to the repository and so public in its
+history and in every clone and fork:
+
+- the AMI secret in `docker/asterisk/manager.conf`, with AMI (5038) published
+  on all interfaces and logins allowed from any address;
+- the LiveKit API key pair in `docker/livekit/livekit.yaml` and
+  `docker/livekit/sip-config.yaml`, with the LiveKit API (7880) published on
+  all interfaces;
+- the Valkey password in the same two files.
+
+Rotation is the fix: removing them from our history would do nothing for
+copies already made. Current checkouts carry no working value
+(`bin/orbital-secrets` generates one per install, and Asterisk and Compose
+refuse to start without them), and AMI, LiveKit and Loki publish on
+`127.0.0.1` only. Finding the old values in history is not a reportable
+vulnerability.
+
+**If you run a Compose stack that was started from an unmodified checkout,
+it used these values. If 5038 or 7880 was ever reachable from another machine,
+treat the AMI secret, the LiveKit key pair and the Valkey password as
+compromised** — AMI allowed command execution in the Asterisk container and
+the LiveKit pair allows joining any live call and forging webhooks — and
+review the host. Either way, rotate: run `sh bin/orbital-secrets` (it replaces
+the old public values), then restart the whole stack. See
+[Upgrading a Compose install](docs/getting-started/installation.md#upgrading-a-compose-install-from-before-november-2026).

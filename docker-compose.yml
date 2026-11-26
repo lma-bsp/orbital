@@ -171,7 +171,7 @@ services:
         image: 'dpage/pgadmin4:latest'
         entrypoint: ['/opt/entrypoint-tls.sh']
         ports:
-            - '${FORWARD_PGADMIN_PORT:-5050}:443'
+            - '${PGADMIN_BIND_ADDRESS:-127.0.0.1}:${FORWARD_PGADMIN_PORT:-5050}:443'
         environment:
             # Server mode replaces the old "desktop" single-user
             # profile with a proper multi-user install. Users come
@@ -529,11 +529,12 @@ services:
             dockerfile: Dockerfile
         # SIP 5060/5061 are no longer host-bound — inbound SIP
         # enters via Kamailio on the telephony network instead.
-        # AMI (5038), WSS softphone (8089), and RTP media
-        # (10000-10099) stay host-bound because they bypass the
-        # proxy by design.
+        # WSS softphone (8089) and RTP media (10000-10099) stay
+        # host-bound because they bypass the proxy by design. AMI
+        # (5038) is loopback-only: the app reaches it over the
+        # `sail` network, and AMI is a shell for whoever logs in.
         ports:
-            - '5038:5038/tcp'
+            - '127.0.0.1:5038:5038/tcp'
             - '8089:8089/tcp'
             - '10000-10099:10000-10099/udp'
         environment:
@@ -549,6 +550,10 @@ services:
             # SIP Proxy page can show how many dynamic registrations
             # THIS Asterisk actually holds vs its sibling.
             ASTERISK_NODE_NAME: 'asterisk-1'
+            # AMI login secret. Laravel reads the same variable from
+            # .env (config/telephony.php); the entrypoint refuses to
+            # start without it. Generate with bin/orbital-secrets.
+            ASTERISK_AMI_SECRET: '${ASTERISK_AMI_SECRET:?ASTERISK_AMI_SECRET is not set; run bin/orbital-secrets}'
             # Voicemail-by-email relay — Asterisk calls /usr/sbin/sendmail
             # (msmtp-mta) and msmtp forwards to MAIL_HOST:MAIL_PORT. In
             # dev that's Mailpit; in prod set via .env to your real relay.
@@ -604,13 +609,19 @@ services:
 
     livekit:
         image: 'livekit/livekit-server:latest'
+        # API/signalling (7880) and ICE/TCP (7881) are loopback-only by
+        # default: anyone who reaches 7880 with the key pair can join
+        # any call. Set LIVEKIT_BIND_ADDRESS=0.0.0.0 in .env when
+        # browsers on other machines must reach this LiveKit directly.
         ports:
-            - '7880:7880'
-            - '7881:7881'
+            - '${LIVEKIT_BIND_ADDRESS:-127.0.0.1}:7880:7880'
+            - '${LIVEKIT_BIND_ADDRESS:-127.0.0.1}:7881:7881'
             - '7882:7882/udp'
         command: --config /etc/livekit.yaml --bind 0.0.0.0
-        volumes:
-            - './docker/livekit/livekit.yaml:/etc/livekit.yaml:ro'
+        configs:
+            # Rendered from .env at `up` — see `configs:` at the bottom.
+            - source: livekit-server
+              target: /etc/livekit.yaml
         networks:
             # `telephony` for SIP/media peers (asterisk, livekit-sip,
             # rtpengine); `sail` so it can reach the Valkey VIP at
@@ -621,12 +632,16 @@ services:
 
     livekit-sip:
         image: 'livekit/sip:latest'
+        # Asterisk reaches the bridge over the `telephony` network; the
+        # host publish is loopback-only unless LIVEKIT_SIP_BIND_ADDRESS
+        # says otherwise.
         ports:
-            - '5069:5069/udp'
-            - '5069:5069/tcp'
-        volumes:
+            - '${LIVEKIT_SIP_BIND_ADDRESS:-127.0.0.1}:5069:5069/udp'
+            - '${LIVEKIT_SIP_BIND_ADDRESS:-127.0.0.1}:5069:5069/tcp'
+        configs:
             # The livekit-sip binary expects its config at /sip/config.yaml.
-            - './docker/livekit/sip-config.yaml:/sip/config.yaml:ro'
+            - source: livekit-sip
+              target: /sip/config.yaml
         networks:
             # `sail` so it can reach the Valkey VIP at haproxy:6379.
             - telephony
@@ -824,8 +839,10 @@ services:
         # and pick up the S3 credentials at boot. Chunks/index live in the
         # SeaweedFS S3 bucket `loki-chunks`; both Loki nodes share the bucket.
         command: '-config.file=/etc/loki/local-config.yaml -config.expand-env=true'
+        # Loopback only: Loki has no auth and holds every container's
+        # logs. Grafana reaches it over the `sail` network.
         ports:
-            - '3100:3100'
+            - '127.0.0.1:3100:3100'
         environment:
             # Both vars in env so the AWS SDK default credential
             # chain resolves consistently; the config file also
@@ -865,7 +882,7 @@ services:
     ollama:
         image: 'ollama/ollama:latest'
         ports:
-            - '${FORWARD_OLLAMA_PORT:-11434}:11434'
+            - '127.0.0.1:${FORWARD_OLLAMA_PORT:-11434}:11434'
         volumes:
             - 'sail-ollama:/root/.ollama'
         networks:
@@ -1011,3 +1028,67 @@ volumes:
         driver: local
     rtpengine-2-spool:
         driver: local
+
+# LiveKit server and SIP bridge config, rendered by Compose from .env
+# when the container is created (replaces the committed
+# docker/livekit/*.yaml, which carried a shared key pair and Valkey
+# password). Compose interpolates ${...} here; LiveKit itself never sees
+# a variable. The required variables come from bin/orbital-secrets.
+# Needs Docker Compose 2.23+ (`configs.content`).
+configs:
+    livekit-server:
+        content: |
+            port: 7880
+
+            rtc:
+              port_range_start: 50000
+              port_range_end: 60000
+              tcp_port: 7881
+              use_ice_lite: true
+
+            # Same pair as LIVEKIT_API_KEY / LIVEKIT_API_SECRET in .env, which
+            # the Laravel app and agent worker sign their tokens with.
+            keys:
+              "${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is not set; run bin/orbital-secrets}": "${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is not set; run bin/orbital-secrets}"
+
+            logging:
+              level: info
+
+            # Built-in Prometheus metrics endpoint (rooms, participants, packet
+            # loss, egress). Scraped by the prometheus job `livekit` on both
+            # livekit and livekit-2; container-internal only, never host-bound.
+            prometheus:
+              port: 6789
+
+            room:
+              max_participants: 50
+              empty_timeout: 300
+              departure_timeout: 20
+
+            redis:
+              # Valkey is fronted by HAProxy's redis VIP (haproxy:6379), which
+              # routes to the current primary in the 3-node Sentinel pool — the
+              # same endpoint rtpengine and the Laravel app (REDIS_HOST) use.
+              address: haproxy:6379
+              password: "${REDIS_PASSWORD:?REDIS_PASSWORD is not set; run bin/orbital-secrets}"
+
+            # Webhook destination for LiveKit events (room_started,
+            # room_finished, track_published, egress_ended). IngestLivekitEgressJob
+            # turns egress_ended into a CallRecording row.
+            webhook:
+              api_key: "${LIVEKIT_API_KEY}"
+              urls:
+                - http://orbital.test/api/livekit/webhook
+
+    livekit-sip:
+        content: |
+            log_level: info
+            api_key: "${LIVEKIT_API_KEY}"
+            api_secret: "${LIVEKIT_API_SECRET}"
+            ws_url: ws://livekit:7880
+            redis:
+              # Valkey VIP via HAProxy, shared call state with the livekit server.
+              address: haproxy:6379
+              password: "${REDIS_PASSWORD}"
+            sip_port: 5069
+            rtp_port: 50000-60000

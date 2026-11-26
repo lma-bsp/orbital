@@ -2,7 +2,9 @@
 #
 # Asterisk container entrypoint.
 #
-# Three things happen before exec'ing asterisk:
+# First the AMI secret is checked and written into manager.conf (the
+# container refuses to start without ASTERISK_AMI_SECRET). Then three
+# things happen before exec'ing asterisk:
 #
 #   1. **TLS cert.** Generates a self-signed cert if none is present
 #      so SIP TLS (5061) and WSS (8089) work out of the box in dev.
@@ -29,6 +31,36 @@
 # Dockerfile chowns them before USER asterisk takes effect.
 #
 set -e
+
+# ── AMI secret ─────────────────────────────────────────────────
+# manager.conf ships a placeholder that never authenticates; the real
+# secret comes from ASTERISK_AMI_SECRET, shared with Laravel and the
+# config-sync sidecar, which log in to AMI to trigger `dialplan reload`.
+# Refuse to start without it: an Asterisk with a known AMI secret is a
+# remote shell for anyone who can reach 5038.
+#
+# The value once committed to manager.conf is refused too: it is public
+# and burned. Compared by SHA-256 so the literal isn't re-committed.
+BURNED_AMI_SECRET_SHA256=918493c2bd7f85ed3109adf87fec92460ee84694230625b1a311c3f5271517d4
+if [ -z "${ASTERISK_AMI_SECRET:-}" ]; then
+    echo "[orbital-asterisk] FATAL: ASTERISK_AMI_SECRET is not set. Run bin/orbital-secrets (or put \`openssl rand -hex 24\` in .env as ASTERISK_AMI_SECRET) and restart. Refusing to start Asterisk with the placeholder AMI secret." >&2
+    exit 1
+fi
+if [ "$(printf '%s' "${ASTERISK_AMI_SECRET}" | sha256sum | cut -d' ' -f1)" = "${BURNED_AMI_SECRET_SHA256}" ]; then
+    echo "[orbital-asterisk] FATAL: ASTERISK_AMI_SECRET is the value once committed to docker/asterisk/manager.conf. It is public: run bin/orbital-secrets --rotate ASTERISK_AMI_SECRET and restart." >&2
+    exit 1
+fi
+# manager.conf has no quoting: `;` starts a comment and whitespace is
+# trimmed. `|` is the sed delimiter below.
+case "${ASTERISK_AMI_SECRET}" in
+    *[\;\|[:space:]]*)
+        echo "[orbital-asterisk] FATAL: ASTERISK_AMI_SECRET must not contain ';', '|' or whitespace." >&2
+        exit 1
+        ;;
+esac
+AMI_SECRET_SED=$(printf '%s' "${ASTERISK_AMI_SECRET}" | sed 's/[&\\]/\\&/g')
+sed -i "s|^secret = .*|secret = ${AMI_SECRET_SED}|" /etc/asterisk/manager.conf
+echo "[orbital-asterisk] AMI secret set from ASTERISK_AMI_SECRET"
 
 # ── 1. TLS cert ─────────────────────────────────────────────────
 KEYS_DIR=/etc/asterisk/keys
@@ -60,16 +92,6 @@ export DB_HOST DB_PORT DB_DATABASE DB_USERNAME DB_PASSWORD
 if [ -f /etc/odbc.ini.tmpl ]; then
     envsubst < /etc/odbc.ini.tmpl > /etc/odbc.ini
     echo "[orbital-asterisk] ODBC DSN materialized for ${DB_HOST}:${DB_PORT}/${DB_DATABASE}"
-fi
-
-# ── AMI secret ─────────────────────────────────────────────────
-# manager.conf ships a placeholder secret; the real one comes from
-# ASTERISK_AMI_SECRET, shared with Laravel and the config-sync sidecar,
-# which log in to AMI to trigger `dialplan reload`. Without this, AMI
-# auth fails and generated config never gets applied automatically.
-if [ -n "${ASTERISK_AMI_SECRET:-}" ]; then
-    sed -i "s|^secret = .*|secret = ${ASTERISK_AMI_SECRET}|" /etc/asterisk/manager.conf
-    echo "[orbital-asterisk] AMI secret set from ASTERISK_AMI_SECRET"
 fi
 
 # ── systemname ─────────────────────────────────────────────────
@@ -105,22 +127,21 @@ fi
 # Binding SIP and HTTP/WSS to it keeps them off the node's public
 # interface and makes pjsip advertise that address in Contact/SDP —
 # reachable from the edge VMs and from pods alike. AMI stays on all
-# addresses (the config-sync sidecar uses 127.0.0.1) but only private
-# sources may log in. RTP binds wide; the node firewall covers it.
+# addresses (the config-sync sidecar uses 127.0.0.1); manager.conf
+# already limits logins to private sources. RTP binds wide; the node
+# firewall covers it.
 if [ -n "${ASTERISK_BIND_ADDRESS:-}" ]; then
     sed -i "s/^bind = 0\.0\.0\.0:/bind = ${ASTERISK_BIND_ADDRESS}:/" /etc/asterisk/pjsip.conf
     sed -i -e "s/^bindaddr = 0\.0\.0\.0/bindaddr = ${ASTERISK_BIND_ADDRESS}/" \
            -e "s/^tlsbindaddr = 0\.0\.0\.0:/tlsbindaddr = ${ASTERISK_BIND_ADDRESS}:/" \
         /etc/asterisk/http.conf
-    sed -i "s|^permit = 0\.0\.0\.0/0\.0\.0\.0|permit = 127.0.0.0/255.0.0.0\npermit = 10.0.0.0/255.0.0.0\npermit = 172.16.0.0/255.240.0.0\npermit = 192.168.0.0/255.255.0.0|" \
-        /etc/asterisk/manager.conf
     # Outbound calls go to the SIP edge through a DNS name with one SRV
     # target per edge VM. On UDP a dead edge only shows as Timer B
     # expiring (32s by default) before pjsip fails over. Kamailio sends
     # 100 Trying at once, so a live edge never gets near it; 8s (with
     # T1 kept at B/64 per RFC 3261) makes a failover land in time.
     printf '\n[system]\ntype = system\ntimer_t1 = 125\ntimer_b = 8000\n' >> /etc/asterisk/pjsip.conf
-    echo "[orbital-asterisk] SIP/HTTP bound to ${ASTERISK_BIND_ADDRESS}; AMI limited to private sources"
+    echo "[orbital-asterisk] SIP/HTTP bound to ${ASTERISK_BIND_ADDRESS}"
 fi
 if [ -n "${ASTERISK_RTP_START:-}" ] && [ -n "${ASTERISK_RTP_END:-}" ]; then
     sed -i -e "s/^rtpstart = .*/rtpstart = ${ASTERISK_RTP_START}/" \
