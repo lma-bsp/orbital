@@ -60,10 +60,24 @@ Each client record carries a **Permission Ceiling** — the furthest any
 client-side user on that account can ever reach, whatever role they are given
 inside it.
 
-Default deployments have nothing to set here, because clients are read-only
-customer accounts. It exists so that granting a client more capability later is
-an explicit, per-account decision with a hard upper bound, rather than
-something that can drift outward one role edit at a time.
+A new client's ceiling is the portal permissions: `portal.view_home`,
+`portal.view_calls`, `portal.view_messages`, `portal.view_recordings`,
+`portal.manage_users` and `portal.manage_roles`. The client's first contact gets
+`client_admin` (the whole ceiling) and every invitee gets `client_user` (the
+four view permissions). Because the manage permissions are on the default
+ceiling, client-side administrators see the portal **Roles** page out of the
+box and can build narrower roles, such as one that cannot play recordings.
+
+Narrowing the ceiling is how you withhold something from a client entirely.
+Removing a permission revokes it from every role inside the client at once,
+and the account owner's built-in fallback stays inside the ceiling too — take
+`portal.view_recordings` off and nobody at that client can play recordings. The
+one exception is the Roles page itself, which the account owner always keeps so
+a client cannot lock itself out of managing its own roles.
+
+It exists so that granting a client more capability later is an explicit,
+per-account decision with a hard upper bound, rather than something that can
+drift outward one role edit at a time.
 
 ## Tool access
 

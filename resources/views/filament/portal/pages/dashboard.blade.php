@@ -14,14 +14,18 @@
                         <div class="orbital-stat-label">Calls today</div>
                         <div class="orbital-stat-value">{{ $callsTodayCount }}</div>
                     </div>
-                    <div class="orbital-stat-card">
-                        <div class="orbital-stat-label">Recent calls</div>
-                        <div class="orbital-stat-value">{{ count($recentCalls) }}</div>
-                    </div>
+                    @if ($showRecentCalls)
+                        <div class="orbital-stat-card">
+                            <div class="orbital-stat-label">Recent calls</div>
+                            <div class="orbital-stat-value">{{ count($recentCalls) }}</div>
+                        </div>
+                    @endif
                 </div>
             </x-filament::section>
         </div>
 
+        {{-- Names callers, so it needs portal.view_calls on top of view_home. --}}
+        @if ($showRecentCalls)
         <div>
             <x-filament::section icon="heroicon-o-clock" heading="Latest Activity">
                 @if (empty($recentCalls))
@@ -42,5 +46,6 @@
                 @endif
             </x-filament::section>
         </div>
+        @endif
     </div>
 </x-filament-panels::page>

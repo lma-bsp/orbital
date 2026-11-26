@@ -183,15 +183,7 @@ class User extends Authenticatable implements FilamentUser
      */
     public function isSuperAdmin(): bool
     {
-        $registrar = app(PermissionRegistrar::class);
-        $originalTeamId = $registrar->getPermissionsTeamId();
-
-        $registrar->setPermissionsTeamId(null);
-        try {
-            return $this->hasRole('super_admin');
-        } finally {
-            $registrar->setPermissionsTeamId($originalTeamId);
-        }
+        return $this->atPlatformLevel(fn (): bool => $this->hasRole('super_admin'));
     }
 
     /**
@@ -203,16 +195,38 @@ class User extends Authenticatable implements FilamentUser
      */
     public function hasAnyPlatformRole(): bool
     {
+        return $this->atPlatformLevel(fn (): bool => $this->roles->isNotEmpty());
+    }
+
+    /**
+     * Run a role check with Spatie's team context cleared, against a
+     * freshly loaded `roles` relation, then put back both the team
+     * context and whatever `roles` relation was loaded before.
+     *
+     * Spatie's `roles` relation is filtered by the team id in force
+     * when it loads, and the loaded collection is cached on the model.
+     * Leaving the team-less set behind (or reusing a client-scoped one
+     * here) makes later checks in the same request answer for the
+     * wrong scope — e.g. the portal user menu asking "platform role?"
+     * would make every portal.* permission check after it fail.
+     *
+     * @param  callable(): bool  $check
+     */
+    protected function atPlatformLevel(callable $check): bool
+    {
         $registrar = app(PermissionRegistrar::class);
         $originalTeamId = $registrar->getPermissionsTeamId();
+        $loadedRoles = $this->relationLoaded('roles') ? $this->getRelation('roles') : null;
 
         $registrar->setPermissionsTeamId(null);
+        $this->unsetRelation('roles');
         try {
-            $this->unsetRelation('roles');
-
-            return $this->roles->isNotEmpty();
+            return $check();
         } finally {
             $registrar->setPermissionsTeamId($originalTeamId);
+            $loadedRoles !== null
+                ? $this->setRelation('roles', $loadedRoles)
+                : $this->unsetRelation('roles');
         }
     }
 

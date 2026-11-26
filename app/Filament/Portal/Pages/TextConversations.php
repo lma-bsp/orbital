@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Portal\Pages;
 
 use App\Models\MessageThread;
+use App\Support\PortalAccess;
 use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Tables;
@@ -28,6 +29,9 @@ use UnitEnum;
  * portal auth context doesn't share state with the admin panel's team
  * scope, and "filter explicitly" beats "hope the global scope is
  * configured right" on a page a client user can open.
+ *
+ * Gated on portal.view_messages ("read messages taken on behalf of the
+ * client") — these threads are the messages the portal shows today.
  */
 class TextConversations extends Page implements HasTable
 {
@@ -46,6 +50,11 @@ class TextConversations extends Page implements HasTable
     protected static ?string $slug = 'texts';
 
     protected string $view = 'filament.portal.pages.text-conversations';
+
+    public static function canAccess(): bool
+    {
+        return PortalAccess::allows(PortalAccess::VIEW_MESSAGES);
+    }
 
     /**
      * Hidden entirely for clients who don't have the channel. An empty

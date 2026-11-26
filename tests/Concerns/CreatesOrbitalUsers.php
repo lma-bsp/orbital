@@ -6,8 +6,11 @@ namespace Tests\Concerns;
 
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Clients\ClientProvisioner;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -82,6 +85,10 @@ trait CreatesOrbitalUsers
      * the user via both `current_team_id` *and* the teams() pivot —
      * `User::belongsToAnyTenant()` checks pivot membership, so setting
      * current_team_id alone isn't enough to pass panel gating.
+     *
+     * Like a provisioned client, the team gets the default permission
+     * ceiling and `client_user` carries the portal.view_* permissions
+     * (when the catalog is seeded), so the portal pages are open.
      */
     protected function makeTenantUser(): User
     {
@@ -107,6 +114,21 @@ trait CreatesOrbitalUsers
                 'guard_name' => 'web',
                 'team_id' => $team->id,
             ]);
+
+            $now = now();
+            foreach (Permission::whereIn('name', ClientProvisioner::DEFAULT_TENANT_ALLOW_LIST)->pluck('id') as $permissionId) {
+                DB::table('client_permission_grants')->insertOrIgnore([
+                    'team_id' => $team->id,
+                    'permission_id' => $permissionId,
+                    'granted_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+            $role->syncPermissions(
+                Permission::whereIn('name', ClientProvisioner::DEFAULT_TENANT_USER_PERMISSIONS)->pluck('name')->all(),
+            );
+
             $user->assignRole($role);
         } finally {
             $registrar->setPermissionsTeamId($original);

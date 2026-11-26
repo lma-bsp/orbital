@@ -26,6 +26,17 @@
     }
 @endphp
 
+@php
+    // Defence in depth behind CallHistory's Play action: on the client
+    // portal, playback needs portal.view_recordings. Without it, no URL
+    // reaches the page. Admin/operator panels are gated by their own
+    // resource access.
+    if (filament()->getCurrentPanel()?->getId() === 'portal'
+        && ! \App\Support\PortalAccess::allows(\App\Support\PortalAccess::VIEW_RECORDINGS)) {
+        $urls = [];
+    }
+@endphp
+
 @if (empty($urls))
     <p class="text-sm text-gray-500 dark:text-gray-400">
         No recording available for this call.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Services\Clients\ClientProvisioner;
 use Database\Seeders\PermissionCatalogSeeder;
 use Database\Seeders\SuperAdminRoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -96,7 +97,12 @@ class OperatorAndPortalPanelTest extends TestCase
     public function test_super_admin_dog_fooding_a_tenant_can_access_portal(): void
     {
         $user = $this->makeUserWithTeamlessRole('super_admin');
-        $this->attachTenantMembership($user);
+        $team = $this->attachTenantMembership($user);
+        // Dog-fooding means switching into a real (provisioned) client;
+        // portal pages are scoped and permission-checked on the current
+        // team, and the owner fallback stays inside its ceiling.
+        app(ClientProvisioner::class)->provision($team);
+        $user->forceFill(['current_team_id' => $team->id])->save();
 
         $this->actingAs($user)
             ->get('/portal')
