@@ -98,8 +98,17 @@ fi
 # ---------------------------------------------------------------------------
 # Helm install
 # ---------------------------------------------------------------------------
+# The chart requires an agent-worker token. Reuse the one already in the
+# cluster so a re-run doesn't hand Laravel and the worker different values.
+AGENT_WORKER_TOKEN="$(kubectl --namespace "${NAMESPACE}" get secret "${RELEASE}-orbital-agent-worker-token" \
+    -o jsonpath='{.data.AGENT_WORKER_TOKEN}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+if [ -z "${AGENT_WORKER_TOKEN}" ]; then
+    AGENT_WORKER_TOKEN="$(openssl rand -hex 32)"
+fi
+
 echo "==> helm upgrade --install ${RELEASE}…"
 helm upgrade --install "${RELEASE}" "${CHART_DIR}" \
+    --set agentWorker.token="${AGENT_WORKER_TOKEN}" \
     --namespace "${NAMESPACE}" \
     --create-namespace \
     -f "${CHART_DIR}/values-onprem-k3s.yaml" \

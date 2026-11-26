@@ -3,7 +3,8 @@
 # Apply with:
 #   helm install orbital ./helm/orbital \
 #     -f ./helm/orbital/values-vultr-k3s.yaml \
-#     --set global.domain=orbital.your-company.com
+#     --set global.domain=orbital.your-company.com \
+#     --set agentWorker.token="$(openssl rand -hex 32)"   # required; keep it
 #
 # Assumes the OpenTofu module at `terraform/vultr/self-hosted-k3s/`
 # in the orbital-setup repo has provisioned the K3s cluster. That module

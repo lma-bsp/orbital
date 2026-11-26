@@ -159,5 +159,6 @@ if [[ "$PUSH" == "1" ]]; then
     echo "      -n orbital \\"
     echo "      -f helm/orbital/values-vultr-k3s.yaml \\"
     echo "      --set global.image.registry=${REGISTRY} \\"
+    echo "      --set agentWorker.token=\"\$AGENT_WORKER_TOKEN\" \\"
     echo "      --set global.image.tag=${TAG}"
 fi

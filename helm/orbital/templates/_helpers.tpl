@@ -295,3 +295,90 @@ always, and the webhook token while Haraka reads it from app-secrets.
 {{- if include "orbital.harakaEnabled" . -}}{{- $keys = append $keys "services.inbound_mail.token" -}}{{- end -}}
 {{- join "," $keys -}}
 {{- end -}}
+
+{{/*
+Credentials that were committed to this repository at some point and so
+must be treated as public. Rendering refuses them wherever the chart can
+see them. Mirrored in App\Support\DefaultCredentials::shipped(), which
+makes `orbital:status` flag the same values at runtime.
+*/}}
+{{- define "orbital.burnedCredentials" -}}
+AGENT_WORKER_TOKEN: ["orbital-dev-agent-token"]
+ASTERISK_AMI_SECRET: ["34bf07c4eedb1b4a471dd899a0692ce98e4ca59f0c8128c2"]
+LIVEKIT_API_KEY: ["APIorbitaldev4a85eae7"]
+LIVEKIT_API_SECRET: ["f4eca5232734d8d514da60b9a0f9c7c27b4b8473c550a442"]
+REDIS_PASSWORD: ["8b630691e6e6c2292489d353cbfbccdbdd6073cbcf680f72"]
+{{- end -}}
+
+{{/*
+The agent-worker bearer token, validated. Whoever holds it can read the
+platform's AI provider keys and every tenant's prompts through the
+worker API, so there is no default: an empty value or the old committed
+dev string stops the render instead of shipping an open door.
+*/}}
+{{- define "orbital.agentWorkerToken" -}}
+{{- $token := toString (.Values.agentWorker.token | default "") -}}
+{{- if eq $token "" -}}
+{{- fail "agentWorker.token is required. Generate one with `openssl rand -hex 32` and pass it with --set agentWorker.token=... (keep it in your password manager; every helm upgrade needs the same value)." -}}
+{{- end -}}
+{{- $burned := get (include "orbital.burnedCredentials" . | fromYaml) "AGENT_WORKER_TOKEN" -}}
+{{- if has $token $burned -}}
+{{- fail "agentWorker.token is set to the old public development token, which grants access to the AI provider keys and every tenant's prompts. Generate a new one with `openssl rand -hex 32`, and rotate every AI provider key this install has used (see docs/getting-started/vultr-vke.md)." -}}
+{{- end -}}
+{{- $token -}}
+{{- end -}}
+
+{{/*
+Env entry that reads the agent-worker token from the chart's Secret.
+Usage: include "orbital.agentWorkerTokenEnv" (list . "ORBITAL_API_TOKEN")
+*/}}
+{{- define "orbital.agentWorkerTokenEnv" -}}
+{{- $ctx := index . 0 -}}
+- name: {{ index . 1 }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "orbital.componentName" (list $ctx "agent-worker-token") }}
+      key: AGENT_WORKER_TOKEN
+{{- end -}}
+
+{{/*
+Env entry that reads ASTERISK_AMI_SECRET from app-secrets with no
+fallback. envFrom silently skips a missing key, and the Asterisk image
+then keeps the secret baked into its manager.conf; a secretKeyRef makes
+the kubelet refuse to start the container instead.
+*/}}
+{{- define "orbital.amiSecretEnv" -}}
+- name: ASTERISK_AMI_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "orbital.componentName" (list . "app-secrets") }}
+      key: ASTERISK_AMI_SECRET
+{{- end -}}
+
+{{/*
+Install/upgrade-time check of the operator-created app-secrets. `lookup`
+only sees the cluster during a real install or upgrade; under
+`helm template` / --dry-run it returns nothing and this is a no-op, and
+the secretKeyRefs above still stop pods from starting without the keys.
+*/}}
+{{- define "orbital.checkAppSecrets" -}}
+{{- $name := include "orbital.componentName" (list . "app-secrets") -}}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace $name -}}
+{{- if $secret -}}
+{{- $data := $secret.data | default dict -}}
+{{- $required := list -}}
+{{- if .Values.asterisk.enabled -}}{{- $required = append $required "ASTERISK_AMI_SECRET" -}}{{- end -}}
+{{- if or .Values.livekit.enabled .Values.livekitSip.enabled -}}{{- $required = concat $required (list "LIVEKIT_API_KEY" "LIVEKIT_API_SECRET") -}}{{- end -}}
+{{- range $key := $required -}}
+{{- if eq (b64dec (get $data $key | default "")) "" -}}
+{{- fail (printf "Secret %s has no %s. Add it (for example `openssl rand -hex 24`) before installing; the chart no longer falls back to a built-in value." $name $key) -}}
+{{- end -}}
+{{- end -}}
+{{- range $key, $burned := (include "orbital.burnedCredentials" . | fromYaml) -}}
+{{- $value := b64dec (get $data $key | default "") -}}
+{{- if and (ne $value "") (has $value $burned) -}}
+{{- fail (printf "Secret %s sets %s to a value that was committed to the Orbital repository and is public. Replace it with a fresh random value and restart the pods that use it." $name $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

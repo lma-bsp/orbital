@@ -91,9 +91,17 @@ if [ "${EDGE:-0}" = "1" ]; then
   )
 fi
 
+# The chart requires the agent-worker token; keep the one k3d-up.sh set.
+AGENT_WORKER_TOKEN="$(kubectl --namespace "${NAMESPACE}" get secret "${RELEASE}-orbital-agent-worker-token" \
+  -o jsonpath='{.data.AGENT_WORKER_TOKEN}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+if [ -z "${AGENT_WORKER_TOKEN}" ]; then
+  AGENT_WORKER_TOKEN="$(openssl rand -hex 32)"
+fi
+
 echo "==> helm upgrade ${RELEASE} onto tag ${TAG}"
 helm upgrade "${RELEASE}" "${REPO_ROOT}/helm/orbital" \
   --namespace "${NAMESPACE}" \
+  --set agentWorker.token="${AGENT_WORKER_TOKEN}" \
   -f "${VALUES}" \
   "${EDGE_ARGS[@]}" \
   --set global.image.registry=orbital-registry:5001 \

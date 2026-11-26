@@ -29,6 +29,7 @@ spec:
       annotations:
         # Roll on app-env change — env vars are only read at container start.
         checksum/app-env: {{ include (print $.Template.BasePath "/configmap-app-env.yaml") . | sha256sum }}
+        checksum/agent-worker-token: {{ include "orbital.agentWorkerToken" . | sha256sum }}
     spec:
       {{- include "orbital.imagePullSecrets" . | nindent 6 }}
       securityContext:
@@ -51,8 +52,7 @@ spec:
           env:
             - name: ORBITAL_API_URL
               value: "http://{{ include "orbital.componentName" (list . "laravel") }}:{{ .Values.laravel.service.port }}/api"
-            - name: ORBITAL_API_TOKEN
-              value: {{ .Values.agentWorker.token | quote }}
+            {{- include "orbital.agentWorkerTokenEnv" (list . "ORBITAL_API_TOKEN") | nindent 12 }}
             - name: LIVEKIT_URL
               value: "ws://{{ include "orbital.componentName" (list . "livekit") }}:{{ .Values.livekit.service.port }}"
           resources:
