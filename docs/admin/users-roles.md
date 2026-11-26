@@ -18,7 +18,11 @@ Client roles are scoped to a specific team. They grant access to the customer po
 
 | Role | Access | Purpose |
 |------|--------|---------|
-| `client_user` | Portal | View messages, calls, recordings for their client |
+| `client_admin` | Portal | Everything on the client's permission ceiling, including the portal Roles page |
+| `client_user` | Portal | View the overview, calls, text messages and recordings for their client (`portal.view_*`) |
+
+Each portal page checks its own permission, so a client-side administrator can
+build narrower roles — see [Client Portal](../portal/index.md#who-sees-which-page).
 
 ## Managing Staff
 

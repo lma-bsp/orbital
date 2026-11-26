@@ -26,6 +26,12 @@ work out when somebody called.
 Where call recording is enabled, **Play** opens the recording in an inline
 player on the row. Links are signed and time-limited rather than guessable.
 
+**Play** needs the `portal.view_recordings` permission on top of
+`portal.view_calls`; without it the button is not shown and no recording link
+is issued. **Transcript** needs only `portal.view_calls` — it is the text of
+the conversation the agent recorded turn by turn, the same call detail the
+page already shows.
+
 Recording is configured per client and subject to the disclosure rules for the
 jurisdictions involved — Orbital can play a spoken disclosure at the start of a
 recorded call, and beep periodically during it. Whether recording is on at all
