@@ -9,7 +9,7 @@
 
     If you land on this page in a browser, it means a client hit
     /oauth/authorize that wasn't marked as first-party. Either add it
-    to FirstPartyClient::FIRST_PARTY_NAMES or build a real consent
+    to FirstPartyClient::FIRST_PARTY_CLIENTS or build a real consent
     screen here following Passport's stock shape.
 --}}
 <!doctype html>

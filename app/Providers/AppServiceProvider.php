@@ -118,7 +118,8 @@ class AppServiceProvider extends ServiceProvider
         // infra we own, not third-party apps that need explicit
         // user consent. `FirstPartyClient` overrides
         // `skipsAuthorization` to return true for our registered
-        // client names, so the consent step is skipped entirely.
+        // client names, so the consent step is skipped entirely, and
+        // to 403 anyone without that tool's `tooling.*` permission.
         Passport::useClientModel(FirstPartyClient::class);
 
         // OIDC scope registration — without this, Passport's
