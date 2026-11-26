@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
  * The agent worker authenticates with the shared secret in
- * `services.agent_worker.token` (the chart's agentWorker.token), not a
- * Sanctum token. Accept that secret; otherwise fall back to Sanctum so
- * personal access tokens keep working. Only the worker secret marks the
- * request as `agent_worker`, which is what releases provider keys.
+ * `services.agent_worker.token` (the chart's agentWorker.token). Nothing
+ * else gets in: the controllers behind this middleware are not
+ * team-scoped (the worker serves every client), so a Sanctum token or a
+ * session would hand one client's user every client's personas,
+ * extensions and call logs. A missing or empty secret refuses everyone.
  */
 class AuthenticateAgentWorker
 {
@@ -22,12 +22,12 @@ class AuthenticateAgentWorker
     {
         $expected = (string) config('services.agent_worker.token');
 
-        if ($expected !== '' && hash_equals($expected, (string) $request->bearerToken())) {
-            $request->attributes->set('agent_worker', true);
-
-            return $next($request);
+        if ($expected === '' || ! hash_equals($expected, (string) $request->bearerToken())) {
+            abort(401);
         }
 
-        return app(Authenticate::class)->handle($request, $next, 'sanctum');
+        $request->attributes->set('agent_worker', true);
+
+        return $next($request);
     }
 }
