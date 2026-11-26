@@ -26,7 +26,7 @@ class VerifyInboundMailToken
     {
         $expected = (string) config('services.inbound_mail.token');
 
-        if ($expected === '' || $request->bearerToken() !== $expected) {
+        if ($expected === '' || ! hash_equals($expected, (string) $request->bearerToken())) {
             abort(401, 'Invalid inbound mail token');
         }
 

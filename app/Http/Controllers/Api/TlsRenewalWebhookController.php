@@ -27,7 +27,7 @@ class TlsRenewalWebhookController
         $expectedToken = (string) config('tls.webhook_token');
         $providedToken = $request->bearerToken() ?? '';
 
-        if ($expectedToken === '' || $providedToken !== $expectedToken) {
+        if ($expectedToken === '' || ! hash_equals($expectedToken, $providedToken)) {
             return response()->json(['error' => 'unauthorized'], 401);
         }
 

@@ -42,8 +42,8 @@ Route::get('/version', fn () => Release::toArray());
  * because the worker isn't a Sanctum-issued user.
  */
 Route::post('/agent-worker/heartbeat', function (Request $request) {
-    $expected = config('services.agent_worker.token');
-    if (! $expected || $request->bearerToken() !== $expected) {
+    $expected = (string) config('services.agent_worker.token');
+    if ($expected === '' || ! hash_equals($expected, (string) $request->bearerToken())) {
         abort(401);
     }
     Cache::put('agent_worker:heartbeat', now(), now()->addSeconds(120));
