@@ -13,6 +13,8 @@ use App\Services\Telephony\AsteriskAmiService;
 use App\Services\Telephony\LiveKitConfigService;
 use App\Services\Telephony\RtpengineService;
 use App\Support\DefaultCredentials;
+use App\Support\Release;
+use App\Support\SourceOfferCheck;
 use Illuminate\Console\Command;
 
 class TelephonyStatus extends Command
@@ -74,6 +76,7 @@ class TelephonyStatus extends Command
         $this->line('    Queues:     '.CallQueue::withoutGlobalScopes()->count());
 
         $this->reportUnrotatedDefaults();
+        $this->reportSourceOffer();
 
         return self::SUCCESS;
     }
@@ -103,5 +106,35 @@ class TelephonyStatus extends Command
         }
 
         $this->line('    Rotate these before this installation takes real calls. See SECURITY.md.');
+    }
+
+    /**
+     * Warn when /source can't be trusted to point at the code this build
+     * runs: no recorded commit, or the upstream URL on a build that isn't
+     * an upstream release. See {@see SourceOfferCheck}.
+     */
+    private function reportSourceOffer(): void
+    {
+        $this->newLine();
+
+        if (SourceOfferCheck::isExempt()) {
+            $this->info('  Source offer: local development, not checked.');
+
+            return;
+        }
+
+        $problems = SourceOfferCheck::problems();
+
+        if ($problems === []) {
+            $this->info('  Source offer: '.Release::sourceUrlForCommit());
+
+            return;
+        }
+
+        $this->warn('  Source offer: /source may not point at the code this build runs:');
+
+        foreach ($problems as $problem) {
+            $this->line('    ! '.$problem);
+        }
     }
 }

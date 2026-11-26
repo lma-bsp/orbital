@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Pages;
 
 use App\Services\Licensing\SupportSubscription;
+use App\Services\Security\SecurityTxt;
 use App\Support\Release;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -71,6 +72,22 @@ class About extends Page
             'license_url' => Release::licenseUrl(),
             'source_url' => Release::sourceUrl(),
             'source_url_commit' => Release::sourceUrlForCommit(),
+        ];
+    }
+
+    /**
+     * Where to report a security problem with this installation. The
+     * link is only offered once security.txt is actually served.
+     *
+     * @return array{contact: ?string, security_txt_url: ?string}
+     */
+    public function getSecurity(): array
+    {
+        $contact = SecurityTxt::contactUri(config('orbital.security.contact'));
+
+        return [
+            'contact' => $contact,
+            'security_txt_url' => $contact === null ? null : route('security-txt'),
         ];
     }
 

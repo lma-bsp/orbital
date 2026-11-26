@@ -12,6 +12,8 @@ use App\Services\CertificateService;
 use App\Services\Telephony\KamailioService;
 use App\Services\Telephony\Realtime\OutboundTrunkAuditor;
 use App\Services\Telephony\RtpengineService;
+use App\Support\Release;
+use App\Support\SourceOfferCheck;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
@@ -203,6 +205,7 @@ class SystemHealthService
             $this->probeResultToCheck($probes['alertmanager'], 'alertmanager', 'Alertmanager', 'Observability', 'Routes firing alerts to email and webhooks', 'heroicon-o-bell-alert'),
             $this->checkHorizon(),
             $this->checkScheduler(),
+            $this->checkLicensing(),
         ];
 
         // Swap out checks for components this deployment topology
@@ -1164,6 +1167,47 @@ class SystemHealthService
         }
 
         return sprintf('%.1f %s', $value, $units[$i]);
+    }
+
+    /**
+     * Whether /source points at the code this build actually runs (AGPL
+     * section 13). WARN, never DOWN: a wrong source offer is a compliance
+     * problem, not an outage. See {@see SourceOfferCheck}.
+     */
+    private function checkLicensing(): HealthCheck
+    {
+        $metrics = [
+            'Version' => Release::version(),
+            'Channel' => Release::channel(),
+            'Commit' => Release::shortCommit() ?? 'not recorded',
+            'Source' => Release::sourceUrl(),
+        ];
+
+        if (SourceOfferCheck::isExempt()) {
+            return new HealthCheck(
+                key: 'licensing',
+                name: 'Source offer',
+                category: 'Platform',
+                status: HealthCheck::OK,
+                message: 'Local development — source offer not checked',
+                metrics: $metrics,
+                icon: 'heroicon-o-scale',
+            );
+        }
+
+        $problems = SourceOfferCheck::problems();
+
+        return new HealthCheck(
+            key: 'licensing',
+            name: 'Source offer',
+            category: 'Platform',
+            status: $problems === [] ? HealthCheck::OK : HealthCheck::WARN,
+            message: $problems === []
+                ? '/source links the exact commit this build runs'
+                : implode(' ', $problems),
+            metrics: $metrics,
+            icon: 'heroicon-o-scale',
+        );
     }
 
     /**

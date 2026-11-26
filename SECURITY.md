@@ -22,6 +22,10 @@ Useful things to include, in rough order of value:
 - Whether it crosses a tenant boundary — those are our highest severity by
   default
 
+If the problem is with one particular Orbital deployment rather than with
+Orbital itself, report it to whoever runs that deployment. Their contact is at
+`/.well-known/security.txt` on the site, if they have set one.
+
 ## What to expect
 
 | | Target |

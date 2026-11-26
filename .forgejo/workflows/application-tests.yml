@@ -270,6 +270,63 @@ jobs:
         run: /tmp/audit-venv/bin/pip-audit --strict --vulnerability-service osv -r agent-worker/requirements.txt
 
   # ────────────────────────────────────────────────────────────────────
+  # Secret scanning (gitleaks) on the repository itself. scan-images only
+  # sees what ends up in a built image, at release time; this stops a
+  # credential before it merges. PRs scan only the commits they add;
+  # main pushes scan the working tree. Rules and vetted placeholders are
+  # in .gitleaks.toml; findings that predate the check (rotated, dev-only
+  # or false positive) are in .gitleaks-baseline.json, so only new ones
+  # fail. Never add a new finding to the baseline to pass: rotate it.
+  # ────────────────────────────────────────────────────────────────────
+  secrets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GITLEAKS_VERSION: "8.28.0"
+    steps:
+      - name: Checkout
+        uses: https://git.calltheory.com/actions/checkout@v7
+        with:
+          # Full history: the PR scan walks origin/<base>..HEAD.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        # Release tarball verified against its published checksums, the
+        # same way scan-images installs trivy.
+        run: |
+          set -euo pipefail
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          cd /tmp
+          curl -fsSLO "${base}/${tarball}"
+          curl -fsSLO "${base}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep " ${tarball}\$" "gitleaks_${GITLEAKS_VERSION}_checksums.txt" | sha256sum -c -
+          tar -xzf "$tarball" gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Scan pull request commits
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${BASE_REF:-main}"
+          # --redact keeps matched values out of the job log.
+          gitleaks git --no-banner --config .gitleaks.toml \
+              --baseline-path .gitleaks-baseline.json \
+              --log-opts="origin/${BASE_REF:-main}..HEAD" \
+              --redact --exit-code 1 .
+
+      - name: Scan working tree
+        if: github.event_name != 'pull_request'
+        run: |
+          gitleaks dir --no-banner --config .gitleaks.toml \
+              --baseline-path .gitleaks-baseline.json \
+              --redact --exit-code 1 .
+
+  # ────────────────────────────────────────────────────────────────────
   # Publish gate: compute version + extra-tags, gated to push events
   # and dispatch. PRs skip this and the entire publish chain. main
   # pushes set version='' so only :latest + :SHA image tags get applied
@@ -341,6 +398,14 @@ jobs:
       context: ${{ matrix.context }}
       dockerfile: ${{ matrix.dockerfile }}
       extra-tags: ${{ needs.tag.outputs.extra }}
+      # Release identity for the AGPL section 13 source offer: these
+      # images are built from the canonical repository, so /source links
+      # it at the exact commit. Only the laravel image declares these
+      # ARGs; the others ignore them. The reusable workflow must forward
+      # build-args to `docker buildx build`.
+      build-args: |
+        ORBITAL_COMMIT=${{ github.sha }}
+        ORBITAL_SOURCE_URL=https://git.calltheory.com/calltheory/orbital
     secrets: inherit
 
   scan-images:

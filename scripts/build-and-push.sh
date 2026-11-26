@@ -23,6 +23,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck source=lib/build-identity.sh
+source "${SCRIPT_DIR}/lib/build-identity.sh"
 
 REGISTRY="${REGISTRY:-cr.calltheory.com}"
 PROJECT="${PROJECT:-orbital}"
@@ -122,6 +124,11 @@ build_one() {
     if [[ "$PUSH" == "1" ]]; then
         extra_args+=(--push)
     fi
+    # Release identity (commit + source URL) only matters to laravel,
+    # the image that serves /source.
+    if [[ "$name" == "laravel" ]]; then
+        extra_args+=("${ORBITAL_BUILD_ARGS[@]}" --build-arg "ORBITAL_VERSION=${TAG}")
+    fi
 
     log_info "Building $image (context: $context)"
     docker buildx build \
@@ -134,6 +141,8 @@ build_one() {
 }
 
 cd "$REPO"
+
+orbital_build_identity "$REPO"
 
 # laravel — context is repo root (Dockerfile copies composer.json + app dir)
 build_one "laravel" "docker/8.4/Dockerfile" "."

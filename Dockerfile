@@ -66,13 +66,20 @@ WORKDIR /var/www/html
 # config/orbital.php, which in turn feeds the About page, the panel
 # footers, /source, and /api/version — i.e. Orbital's AGPL section 13
 # source offer. Build with:
-#   --build-arg ORBITAL_VERSION=1.4.2 --build-arg ORBITAL_COMMIT=$(git rev-parse HEAD)
+#   --build-arg ORBITAL_VERSION=1.4.2 --build-arg ORBITAL_COMMIT=$(git rev-parse HEAD) \
+#   --build-arg ORBITAL_SOURCE_URL=<public URL of the repo that commit was pushed to>
+# Whoever builds the image owns the source URL: a fork's build must name
+# the fork. Empty falls back to upstream (config/orbital.php), and
+# orbital:status warns when that's paired with a non-release build. The
+# runtime env (Helm licensing.sourceUrl) still overrides it.
 ARG ORBITAL_VERSION=dev
 ARG ORBITAL_COMMIT=""
 ARG ORBITAL_RELEASE_CHANNEL=stable
+ARG ORBITAL_SOURCE_URL=""
 ENV ORBITAL_VERSION=${ORBITAL_VERSION}
 ENV ORBITAL_COMMIT=${ORBITAL_COMMIT}
 ENV ORBITAL_RELEASE_CHANNEL=${ORBITAL_RELEASE_CHANNEL}
+ENV ORBITAL_SOURCE_URL=${ORBITAL_SOURCE_URL}
 LABEL org.opencontainers.image.version="${ORBITAL_VERSION}"
 LABEL org.opencontainers.image.revision="${ORBITAL_COMMIT}"
 

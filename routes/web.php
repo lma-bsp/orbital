@@ -17,6 +17,7 @@ use App\Http\Controllers\MetricsController;
 use App\Http\Controllers\Oidc\OidcDiscoveryController;
 use App\Http\Controllers\Oidc\OidcJwksController;
 use App\Http\Controllers\Oidc\OidcUserinfoController;
+use App\Http\Controllers\WellKnown\SecurityTxtController;
 use App\Models\Orchestration;
 use App\Support\Release;
 use Illuminate\Support\Facades\Route;
@@ -200,6 +201,13 @@ Route::get('oauth/jwks', OidcJwksController::class)
 Route::get('oauth/userinfo', OidcUserinfoController::class)
     ->middleware('auth:api')
     ->name('oidc.userinfo');
+
+// RFC 9116 security.txt for THIS deployment, built from Platform
+// Settings → Security. Public and cacheable; 404 until the platform
+// operator sets a contact, so users are never pointed at upstream for
+// a problem with someone else's install.
+Route::get('.well-known/security.txt', SecurityTxtController::class)
+    ->name('security-txt');
 
 // ──────────────────────────────────────────────────────────────────
 // Client invitation acceptance — public (no auth middleware). One

@@ -1,0 +1,80 @@
+# gitleaks configuration for the `secrets` job in
+# .forgejo/workflows/application-tests.yml (and the optional pre-commit
+# hook described in CONTRIBUTING.md).
+#
+# Findings that were already in history when the check was turned on live
+# in .gitleaks-baseline.json (passed with --baseline-path), so the job
+# only fails on new ones. Do not add a new finding to the baseline to make
+# CI pass: rotate the credential and remove it instead. A vetted false
+# positive goes in an allowlist below, with a comment saying why, the same
+# discipline as .trivyignore.yaml. Never quote the matched value in a
+# comment here: the comment would trip the same rule.
+
+title = "Orbital gitleaks config"
+
+[extend]
+# Start from gitleaks' built-in ruleset and add the shapes it misses.
+useDefault = true
+
+# The three credentials that slipped through before this check existed
+# (docker/asterisk/manager.conf, docker/livekit/*.yaml) were long random
+# hex strings on a `secret:` / `password:` key in a config file. The
+# default generic-api-key rule weighs entropy and keyword context and
+# does not reliably catch a bare hex value in YAML or Asterisk INI, so
+# match that shape directly.
+[[rules]]
+id = "orbital-hex-secret-in-config"
+description = "40-64 character hex value on a secret/password key in a .conf or YAML file"
+path = '''(?i)\.(conf|ya?ml)(\.j2|\.blade\.php)?$'''
+regex = '''(?i)\b[\w.-]*(?:api_secret|secret|password)[\w.-]*["']?\s*[:=]\s*["']?([0-9a-f]{40,64})\b'''
+secretGroup = 1
+keywords = ["secret", "password"]
+
+# LiveKit's `keys:` map is `<api key>: <api secret>`, so the secret sits
+# on a key named after the API key, not on one called "secret".
+[[rules]]
+id = "orbital-livekit-key-pair"
+description = "LiveKit API key/secret pair in a keys: map"
+path = '''(?i)\.ya?ml$'''
+regex = '''(?m)^\s+API[A-Za-z0-9]{6,}\s*:\s*["']?([A-Za-z0-9+/=_-]{32,})["']?\s*$'''
+secretGroup = 1
+keywords = ["api"]
+
+# ─── Vetted placeholders ──────────────────────────────────────────────
+
+[[allowlists]]
+description = "Placeholder words used as values"
+# .env.example and the docs ship words like changeme/password as values so
+# a fresh checkout boots and readers know what to replace; none of them is
+# a credential to anything. Matched against the extracted secret only, so a
+# real value on a `password=` line is still caught.
+regexTarget = "secret"
+regexes = [
+    '''^(?i)(changeme|change-me|password|secret|placeholder|example|xxxx+)$''',
+]
+
+[[allowlists]]
+description = "LiveKit public API key prefix"
+# APIorbitaldev… is the public half of the dev LiveKit key pair (the half
+# LiveKit sends in clear in every token header). The secret half is what
+# the orbital-livekit-key-pair rule above looks for, and that is NOT
+# allowlisted.
+regexTarget = "secret"
+regexes = ['''^APIorbitaldev[0-9a-f]*$''']
+
+[[allowlists]]
+description = "Test fixtures"
+# Hard-coded keys in tests are generated for the test and never valid
+# against any service. Kept narrow: only PHPUnit and pytest fixture dirs.
+paths = [
+    '''^tests/''',
+    '''^agent-worker/tests/''',
+]
+
+[[allowlists]]
+description = "SHA-256 fingerprints of burned credentials"
+# docker/asterisk/entrypoint.sh refuses to start with the old committed
+# AMI secret. It compares against the value's SHA-256 so the literal is
+# not committed again; the hash is not a credential to anything.
+regexTarget = "line"
+regexes = ['''\bBURNED_[A-Z_]+_SHA256=''']

@@ -68,7 +68,9 @@ the running version's source, `/source` redirects to the repository, and the
 About page names the exact commit you are running. If you fork and modify
 Orbital, point `ORBITAL_SOURCE_URL` at *your* source. Leaving it pointed at
 ours while shipping changed code does not satisfy your obligation, and is
-exactly the situation section 13 exists to prevent.
+exactly the situation section 13 exists to prevent. The build scripts set
+it, and `orbital:status` warns when it looks wrong. See
+[`docs/admin/licensing.md`](docs/admin/licensing.md) for how, per environment.
 
 ## Bundled components
 

@@ -152,3 +152,9 @@ laravel:
   resources:
     requests: {cpu: "200m", memory: "384Mi"}
     limits: {cpu: "1000m", memory: "1Gi"}
+
+# AGPL section 13 source offer (/source, panel footers, About page).
+# Empty uses the URL the image was built with. Running a fork or a local
+# build? Uncomment and point it at the public repo the running commit is on.
+# licensing:
+#   sourceUrl: "https://git.example.com/your-org/orbital"

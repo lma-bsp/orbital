@@ -55,6 +55,13 @@ else
   for name in "${ALL[@]}"; do WANT[$name]=1; done
 fi
 
+# ORBITAL_COMMIT + ORBITAL_SOURCE_URL for the laravel image, so this
+# deployment's /source links the commit it runs on the remote it was
+# pushed to (AGPL section 13). Override the URL with ORBITAL_SOURCE_URL.
+# shellcheck source=../scripts/lib/build-identity.sh
+source "${REPO_ROOT}/scripts/lib/build-identity.sh"
+orbital_build_identity "${REPO_ROOT}"
+
 cd "${REPO_ROOT}"
 for name in "${ALL[@]}"; do
   ref="${REGISTRY}/orbital/${name}:${TAG}"
@@ -62,7 +69,9 @@ for name in "${ALL[@]}"; do
   if [ -n "${WANT[$name]:-}" ]; then
     spec="${IMAGES[$name]}"; dockerfile="${spec%%|*}"; context="${spec##*|}"
     echo "==> build ${name}  (-f ${dockerfile}  ctx ${context})"
-    docker build -t "${ref}" -f "${dockerfile}" "${context}"
+    build_args=()
+    [ "${name}" = "laravel" ] && build_args=("${ORBITAL_BUILD_ARGS[@]}")
+    docker build "${build_args[@]}" -t "${ref}" -f "${dockerfile}" "${context}"
     docker tag "${ref}" "${dev}"          # moving "latest local" pointer
     docker push "${ref}"; docker push "${dev}"
   else

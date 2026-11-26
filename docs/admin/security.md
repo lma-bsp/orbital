@@ -108,6 +108,23 @@ Logging out may ask for a reason. That is operational rather than a security
 control, but it makes an unexpected drop-off distinguishable from a normal
 end of shift when you are looking back at coverage.
 
+## Where people report security problems
+
+Set a **Security contact** under **System → Settings → Security**. It can be
+an email address or an `https://` page. An optional **Security policy URL**
+can go with it. Once a contact is set, Orbital serves
+`/.well-known/security.txt` ([RFC 9116](https://www.rfc-editor.org/rfc/rfc9116))
+for this deployment. The file has your contact and policy, and an `Expires`
+date 180 days ahead that renews on every request. The About page links to it.
+
+Until a contact is set, the URL returns 404. That is deliberate: a report
+about your installation belongs with you, not with Orbital upstream. Bugs in
+Orbital itself go to upstream, as described in
+[`SECURITY.md`](../../SECURITY.md).
+
+The two values can also come from `SECURITY_CONTACT` and
+`SECURITY_POLICY_URL` in the environment.
+
 ## Handling caller data
 
 A few things worth knowing about how the platform treats what it holds:
