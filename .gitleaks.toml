@@ -70,3 +70,11 @@ paths = [
     '''^tests/''',
     '''^agent-worker/tests/''',
 ]
+
+[[allowlists]]
+description = "SHA-256 fingerprints of burned credentials"
+# docker/asterisk/entrypoint.sh refuses to start with the old committed
+# AMI secret. It compares against the value's SHA-256 so the literal is
+# not committed again; the hash is not a credential to anything.
+regexTarget = "line"
+regexes = ['''\bBURNED_[A-Z_]+_SHA256=''']
