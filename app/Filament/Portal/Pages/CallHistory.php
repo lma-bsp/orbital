@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Portal\Pages;
 
 use App\Models\CallLog;
+use App\Support\PortalAccess;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
@@ -23,6 +24,12 @@ use UnitEnum;
  * share state with the admin panel's team scope, and "filter explicitly"
  * beats "hope the global scope is configured right" for a page a client
  * user can view.
+ *
+ * Gated on portal.view_calls. Recording playback additionally needs
+ * portal.view_recordings. The transcript rides on view_calls: it is
+ * the agent worker's turn-by-turn text of the conversation (the same
+ * call detail this page exists to show), not a rendering of the audio
+ * file, so it doesn't need the recording permission.
  */
 class CallHistory extends Page implements HasTable
 {
@@ -41,6 +48,11 @@ class CallHistory extends Page implements HasTable
     protected static ?string $slug = 'calls';
 
     protected string $view = 'filament.portal.pages.call-history';
+
+    public static function canAccess(): bool
+    {
+        return PortalAccess::allows(PortalAccess::VIEW_CALLS);
+    }
 
     public function table(Table $table): Table
     {
@@ -84,6 +96,7 @@ class CallHistory extends Page implements HasTable
                     ->label('Transcript')
                     ->icon('heroicon-o-chat-bubble-left-right')
                     ->color('gray')
+                    ->authorize(fn (): bool => PortalAccess::allows(PortalAccess::VIEW_CALLS))
                     ->visible(fn (CallLog $record): bool => filled($record->transcript))
                     ->modalHeading(fn (CallLog $record) => 'Transcript — '.($record->from_number ?? '?').' → '.($record->to_number ?? '?'))
                     ->modalSubmitAction(false)
@@ -97,6 +110,8 @@ class CallHistory extends Page implements HasTable
                     ->label('Play')
                     ->icon('heroicon-o-play-circle')
                     ->color('primary')
+                    ->authorize(fn (): bool => PortalAccess::allows(PortalAccess::VIEW_RECORDINGS))
+                    ->hidden(fn (): bool => ! PortalAccess::allows(PortalAccess::VIEW_RECORDINGS))
                     ->visible(fn (CallLog $record): bool => (bool) ($record->recording_path
                         || $record->recording_rx_path
                         || $record->recording_tx_path))

@@ -12,6 +12,7 @@ use App\Http\Middleware\PanelRedirect;
 use App\Http\Middleware\RequireTwoFactor;
 use App\Http\Middleware\SetPermissionsTeamContext;
 use App\Support\Branding;
+use App\Support\PortalAccess;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -43,6 +44,10 @@ class PortalPanelProvider extends PanelProvider
         return $panel
             ->id('portal')
             ->path('portal')
+            // The brand link and "back home" targets follow the user's
+            // portal permissions: Overview when they have view_home,
+            // otherwise the first page they can open.
+            ->homeUrl(fn (): string => PortalAccess::homeUrl())
             ->profile(page: EditProfile::class, isSimple: false)
             ->brandName(fn () => (string) config('orbital.portal_name', 'Customer Portal'))
             ->brandLogo(fn () => Branding::portalLogoLightUrl())
