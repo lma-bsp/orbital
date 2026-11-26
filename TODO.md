@@ -7,6 +7,9 @@ features section).
 
 ## Before making the repository public
 
+> **Plan:** `docs/plans/backlog/release-and-install-readiness.md`. Note: the 2026-11-26
+> check found the repository and its mirror are **already public**.
+
 Orbital is now AGPL-3.0 (`LICENSE`, `LICENSING.md`) with the section 13
 source offer wired into the product — panel footers, `/source`,
 `/api/version`, the About page, and `php artisan orbital:about`. The
@@ -48,6 +51,9 @@ repo itself has NOT been made public; that stays a deliberate act.
       obligation, and the About page says so to whoever reads it.
 
 ## Known bugs
+
+> **Plan:** `docs/plans/backlog/known-bugs.md` verifies every entry below (47 confirmed,
+> one refuted) and sequences the fixes as 12 PRs.
 
 - [ ] **Operator Workspace shows the wrong client's script.**
       `workspace.blade.php:150` mounts `compiled-flow-viewer` with
@@ -437,7 +443,7 @@ Reported by the plan agents, **not yet verified** — confirm before fixing
         were validated structurally and every metric name cross-checked
         against the collectors, but not evaluated.
 
-- [ ] **2FA — Phase 2 (WebAuthn) and Phase 3 (email OTP) still open.**
+- [ ] **2FA — Phase 2 (WebAuthn) and Phase 3 (email OTP) still open.** [Plan: `docs/plans/backlog/2fa-passkeys-and-email-otp.md`]
       Phase 1 (TOTP enrolment) and **Phase 4 (enforcement) are done**.
 
       **Phase 4 — shipped.** `RequireTwoFactor` middleware on all three
@@ -474,7 +480,7 @@ Reported by the plan agents, **not yet verified** — confirm before fixing
       that's worth doing deliberately rather than alongside four other
       workstreams.
 
-- [ ] **Full i18n pass.** Wrap every user-facing string in the app
+- [ ] **Full i18n pass.** [Plan: `docs/plans/backlog/i18n.md`] Wrap every user-facing string in the app
       (Filament resource labels, form labels, table column labels,
       notifications, blade copy) in `__('key')` and author
       `lang/{locale}/*.php` translation files for every locale we
@@ -488,7 +494,7 @@ Reported by the plan agents, **not yet verified** — confirm before fixing
       point whether to add Polish / Ukrainian / Russian / Quebec
       French beyond the scaffolding list.
 
-- [ ] **Messaging channel follow-ons.** The SMS/MMS channel is live end
+- [ ] **Messaging channel follow-ons.** [Plan: `docs/plans/backlog/messaging-follow-ons.md`] The SMS/MMS channel is live end
       to end: carrier webhook with per-provider signature verification,
       routing, threading, operator inbox with inline reply and
       per-message delivery state, and an AI auto-reply path (off by
@@ -576,6 +582,8 @@ Reported by the plan agents, **not yet verified** — confirm before fixing
 
 ## First-run gaps found while writing the VKE runbook
 
+> **Plan:** `docs/plans/backlog/release-and-install-readiness.md`.
+
 - [ ] **A fresh Helm install has no login.** `FirstSuperAdminSeeder`
       only acts when `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` are
       set, and the chart never sets them (correctly — a password passed
@@ -593,6 +601,8 @@ Reported by the plan agents, **not yet verified** — confirm before fixing
 
 ## Runtime config not yet set
 
+> **Plan:** `docs/plans/backlog/release-and-install-readiness.md` (AI provider readiness).
+
 - [ ] **Anthropic API key** in Platform Settings → AI Providers.
       `ProcessEmailWithAgentJob` is fully wired (compiles flow, builds
       prompt, projects thread history, calls Anthropic, hands reply
@@ -603,11 +613,15 @@ Reported by the plan agents, **not yet verified** — confirm before fixing
 
 ## Deferred features — tracked so they don't fall through the cracks
 
+> Every item below now has a plan; see `docs/plans/backlog/README.md` for the index.
+
 Not blockers. Ordinary backlog — reach for when the critical list
 is clear or when a specific item becomes painful enough to justify
 the work.
 
 ### Inbound email follow-ons (Phases 1–4 shipped)
+
+> **Plan:** `docs/plans/backlog/inbound-email-follow-ons.md`.
 
 - [ ] **Tenant-custom inbound domains.** Let tenants point their own
       domain's MX at our Haraka instance so `support@customer.com`
@@ -643,6 +657,8 @@ the work.
 
 ### Operator activity tracking
 
+> **Plan:** `docs/plans/backlog/operator-activity-events.md`.
+
 - [ ] **Operator history events.** Track every meaningful operator
       action as a timestamped event — fetching/closing accounts,
       dialing numbers, answering/ending calls, claiming/unclaiming
@@ -656,6 +672,8 @@ the work.
       timeline per operator.
 
 ### Amtelco import follow-ons
+
+> **Plan:** `docs/plans/backlog/amtelco-import-follow-ons.md`.
 
 `orbital:import-amtelco` and `orbital:import-amtelco-directories`
 (`app/Services/Import/Amtelco/`) migrate clients and directories from
@@ -692,7 +710,7 @@ an Amtelco Infinity export.
 
 ### Other
 
-- [ ] **Template tenants for common answering-service patterns.**
+- [ ] **Template tenants for common answering-service patterns.** [Plan: `docs/plans/backlog/template-clients.md`]
       Ship a set of "start here" tenants we (and future platform
       operators) can clone for new clients. Each one exercises a
       different mix of AI + human + routing primitives we already
@@ -715,7 +733,7 @@ an Amtelco Infinity export.
       Work splits into: (1) inventory what's already composable from
       RoutingRule + CallQueue + IntakeFlow + AgentPersona, (2) fill
       the gaps, (3) seeders that spin up each template + docs.
-- [ ] **Phone book / directory in the softphone widget.** When an
+- [ ] **Phone book / directory in the softphone widget.** [Plan: `docs/plans/backlog/template-clients.md`] When an
       operator is working inside a tenant context, the phone widget
       should expose that tenant's directory (contacts, on-call
       staff, shared lists) so transfers and outbound calls don't
@@ -742,11 +760,11 @@ an Amtelco Infinity export.
         the per-goal override can't fire on the AI path yet. The seam is
         `SessionMessageWriter::goalFor()` — one method, when the worker
         starts sending it.
-- [ ] **Horizon metrics + alerting.** Once the observability stack
+- [ ] **Horizon metrics + alerting.** [Plan: `docs/plans/backlog/observability-follow-ons.md`] Once the observability stack
       lands, wire Horizon queue depth + failure rate into the
       Orbital App dashboard so a stalled `inbound-mail` queue or a
       flood of failed jobs is visible at a glance.
-- [ ] **Multi-tenant portal access for contacts + shared directories.**
+- [ ] **Multi-tenant portal access for contacts + shared directories.** [Plan: `docs/plans/backlog/multi-client-portal-access.md`]
       Today a contact's "Grant portal access" action links
       `contacts.user_id` to a single User that lives under one
       tenant's `tenant_user` role. In reality a contact might legitimately
@@ -762,7 +780,7 @@ an Amtelco Infinity export.
       answer "which tenant?"). ~half-day refactor, plan before
       touching.
 - [ ] **Pluggable infrastructure backends — internal ↔ external
-      swap.** Let the platform operator toggle whether the stack
+      swap.** [Plan: `docs/plans/backlog/pluggable-backends.md`] Let the platform operator toggle whether the stack
       uses our shipped container or an external endpoint they
       supply, per service. Canonical case: **MinIO ↔ real S3** —
       admin flips a setting, enters endpoint + keys + bucket,
@@ -790,7 +808,7 @@ an Amtelco Infinity export.
       section below covers the active-active plan. The pluggable
       backend work should land first so HA can build on top of
       "point at external" as one of its primitives.
-- [ ] **MinIO Console OIDC login UI.** The embedded Console in
+- [ ] **MinIO Console OIDC login UI.** [Plan: `docs/plans/backlog/observability-follow-ons.md`] The embedded Console in
       MinIO `RELEASE.2025-09-07` reports `loginStrategy: form` on
       its `/api/v1/login` endpoint even with a fully configured
       named OIDC provider (role policy attached, display name set,
@@ -802,7 +820,7 @@ an Amtelco Infinity export.
       confirmed OIDC UI support) in front of the object server.
       For now the Console login page uses the root credentials as
       a fallback — programmatic S3/mc access via OIDC still works.
-- [ ] **Portal-side metrics embedding.** The provisioning path is
+- [ ] **Portal-side metrics embedding.** [Plan: `docs/plans/backlog/observability-follow-ons.md`] The provisioning path is
       done — four dashboards ship in
       `docker/grafana/provisioning/dashboards/orbital/` and load on
       container start. What's left:
@@ -833,6 +851,8 @@ planning + testing. User preference: **do these last, after the
 core product is stable**. Schedule ahead of any production cutover.
 
 ### HA / DR / BC — active-active horizontal scaling + DR site
+
+> **Plan:** `docs/plans/backlog/dr-site.md` (remaining HA gaps + DR site).
 
 **Goal.** Run every layer of the stack duplicated in an active-
 active configuration so we can take one node offline for
@@ -949,6 +969,8 @@ sprint. HA layers get much harder when the schema is still
 moving.
 
 ### Configuration + data backups
+
+> **Plan:** `docs/plans/backlog/backups-follow-ons.md`.
 
 **Shipped:** `orbital:backup` / `orbital:restore` — encrypted nightly
 PostgreSQL backup to an off-box S3-compatible destination, scheduled at
