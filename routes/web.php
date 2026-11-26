@@ -45,10 +45,13 @@ Route::get('/', function () {
 
 // Impersonation — super-admin only
 Route::middleware(['auth', config('jetstream.auth_session')])->group(function () {
-    Route::post('/impersonate/{user}', [ImpersonationController::class, 'start'])
-        ->name('impersonate.start');
+    // `stop` first and `{user}` numeric-only: otherwise uncached routes
+    // match /impersonate/stop as start('stop') and 404 on the binding.
     Route::post('/impersonate/stop', [ImpersonationController::class, 'stop'])
         ->name('impersonate.stop');
+    Route::post('/impersonate/{user}', [ImpersonationController::class, 'start'])
+        ->whereNumber('user')
+        ->name('impersonate.start');
 });
 
 // Email attachment download + raw MIME viewer. Authed via the
