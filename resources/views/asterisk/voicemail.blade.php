@@ -58,7 +58,7 @@ pacific=America/Los_Angeles|'vm-received' Q 'digits/at' IMp
 ; email pipeline (triggered by externnotify above) owns delivery.
 ; Setting email here would cause Asterisk to double-send.
 @foreach($mailboxes as $mb)
-{{ $mb['mailbox'] }} => {{ $mb['password'] }},{{ $mb['fullname'] }},,,tz=eastern
+@asttoken($mb['mailbox']) => @asttoken($mb['password']),@asttext($mb['fullname']),,,tz=eastern
 @endforeach
 @if(count($mailboxes) === 0)
 ; No clients have a voicemail routing rule configured. Add one via

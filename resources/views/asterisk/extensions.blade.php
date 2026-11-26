@@ -50,32 +50,32 @@ exten => _1XXXXXXXXXX,1,NoOp(Internal DID simulation: ${EXTEN})
 
 ; ── AI Agent Extensions (via LiveKit) ──
 @foreach($extensions->where('type', 'ai_agent') as $ext)
-exten => {{ $ext->number }},1,NoOp(AI Agent: {{ $ext->label ?? $ext->number }})
- same => n,Dial(PJSIP/{{ $ext->number }}@livekit,120,tTkKb(orbital-ai-headers^s^1))
+exten => @asttoken($ext->number),1,NoOp(AI Agent: @asttext($ext->label ?? $ext->number))
+ same => n,Dial(PJSIP/@asttoken($ext->number)@livekit,120,tTkKb(orbital-ai-headers^s^1))
  same => n,GotoIf($["${DIALSTATUS}" != "ANSWER"]?orbital-ai-unavailable,s,1)
  same => n,Hangup()
 @endforeach
 
 ; ── Internal Extensions ──
 @foreach($extensions->whereNotIn('type', ['ai_agent']) as $ext)
-exten => {{ $ext->number }},1,NoOp(Dialing {{ $ext->label ?? 'extension' }} {{ $ext->number }})
+exten => @asttoken($ext->number),1,NoOp(Dialing @asttext($ext->label ?? 'extension') @asttoken($ext->number))
 @include('asterisk.partials.mix-monitor', ['ext' => $ext])
- same => n,Dial(PJSIP/{{ $ext->number }},18,tTkK)
+ same => n,Dial(PJSIP/@asttoken($ext->number),18,tTkK)
  same => n,GotoIf($["${DIALSTATUS}" = "BUSY"]?busy:unavail)
- same => n(busy),VoiceMail({{ $ext->number }}@@default,b)
+ same => n(busy),VoiceMail(@asttoken($ext->number)@@default,b)
  same => n,Hangup()
- same => n(unavail),VoiceMail({{ $ext->number }}@@default,u)
+ same => n(unavail),VoiceMail(@asttoken($ext->number)@@default,u)
  same => n,Hangup()
 @endforeach
 
 ; ── Call Queues ──
 @foreach($queues as $queue)
-exten => queue-{{ $queue->id }},1,NoOp(Queue: {{ $queue->name }} -> {{ $queue->asteriskName() }})
+exten => queue-{{ $queue->id }},1,NoOp(Queue: @asttext($queue->name) -> {{ $queue->asteriskName() }})
  same => n,Answer()
  same => n,Queue({{ $queue->asteriskName() }},tTkK,,,{{ $queue->agentGroup?->strategyTemplate?->timeout ?? 30 }})
 @if($queue->overflowAgent)
- same => n,NoOp(Overflow to AI agent: {{ $queue->overflowAgent->name }})
- same => n,Dial(PJSIP/{{ $queue->overflowAgent->extensions->first()?->number ?? '0' }}@livekit,120,tTkKb(orbital-ai-headers^s^1))
+ same => n,NoOp(Overflow to AI agent: @asttext($queue->overflowAgent->name))
+ same => n,Dial(PJSIP/@asttoken($queue->overflowAgent->extensions->first()?->number ?? '0')@livekit,120,tTkKb(orbital-ai-headers^s^1))
  same => n,GotoIf($["${DIALSTATUS}" != "ANSWER"]?orbital-ai-unavailable,s,1)
 @endif
  same => n,Hangup()

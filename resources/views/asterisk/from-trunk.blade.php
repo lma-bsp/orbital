@@ -27,9 +27,9 @@
 @foreach($rules as $rule)
 @php
     $tenantContext = $rule->team?->dialplanContext() ?? 'internal';
-    $pattern = $rule->match_pattern ?: '_X.';
+    $pattern = \App\Support\Asterisk\ConfigValue::token($rule->match_pattern) ?: '_X.';
 @endphp
-; Rule {{ $rule->id }}: {{ $rule->name ?? '(unnamed)' }} → {{ $tenantContext }}
+; Rule {{ $rule->id }}: @asttext($rule->name ?? 'unnamed') → {{ $tenantContext }}
 exten => {{ $pattern }},1,NoOp(Inbound {{ $pattern }} for client {{ $rule->team_id ?? 'platform' }} via rule {{ $rule->id }})
  same => n,Set(__ORBITAL_DID=${EXTEN})
  same => n,Gosub(orbital-cdr-inbound,s,1({{ $rule->team_id }},{{ $rule->id }}))

@@ -26,6 +26,7 @@ use Filament\View\PanelsRenderHook;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -52,6 +53,11 @@ class AppServiceProvider extends ServiceProvider
         $this->useLeanPermissionRegistrar();
 
         $this->registerBootstrappers();
+
+        // Generated Asterisk config prints DB strings through these, not
+        // `{{ }}` (which leaves newlines in): see ConfigValue.
+        Blade::directive('asttext', fn (string $expression) => "<?php echo \\App\\Support\\Asterisk\\ConfigValue::text({$expression}); ?>");
+        Blade::directive('asttoken', fn (string $expression) => "<?php echo \\App\\Support\\Asterisk\\ConfigValue::token({$expression}); ?>");
 
         // SendGrid over its web API (Laravel has no built-in transport
         // for it). The key is read when the mailer is first used, so a

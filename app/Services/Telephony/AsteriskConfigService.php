@@ -9,6 +9,7 @@ use App\Models\CallQueue;
 use App\Models\Extension;
 use App\Models\RoutingRule;
 use App\Models\Team;
+use App\Support\Asterisk\ConfigValue;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
@@ -94,7 +95,8 @@ class AsteriskConfigService
                     'extension' => $destinations->dialplanExtension($handoff['team_id'], $handoff['number']),
                     // Built here: in Blade, `@{{` is an escaped literal.
                     'dial' => 'PJSIP/'.$handoff['number'].'@trunk_'.$trunk->id,
-                    'host' => (string) $trunk->host,
+                    // The only free-form value here; it lands inside Set().
+                    'host' => ConfigValue::token($trunk->host),
                 ] : null;
             })
             ->filter()
