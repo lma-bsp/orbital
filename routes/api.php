@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\LivekitWebhookController;
 use App\Http\Controllers\Api\TlsRenewalWebhookController;
 use App\Http\Controllers\Api\V1\HandoffController;
 use App\Http\Controllers\Api\VoicemailWebhookController;
+use App\Support\AgentWorkerToken;
 use App\Support\Release;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -42,8 +43,7 @@ Route::get('/version', fn () => Release::toArray());
  * because the worker isn't a Sanctum-issued user.
  */
 Route::post('/agent-worker/heartbeat', function (Request $request) {
-    $expected = config('services.agent_worker.token');
-    if (! $expected || $request->bearerToken() !== $expected) {
+    if (! AgentWorkerToken::matches($request->bearerToken())) {
         abort(401);
     }
     Cache::put('agent_worker:heartbeat', now(), now()->addSeconds(120));

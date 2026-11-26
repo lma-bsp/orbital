@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\KnowledgeStore;
 use App\Services\Knowledge\RetrievalService;
+use App\Support\AgentWorkerToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -66,8 +67,7 @@ class KnowledgeController extends Controller
      */
     private function resolveTeamId(Request $request, array $storeIds): ?int
     {
-        $workerToken = (string) config('services.agent_worker.token');
-        if ($workerToken !== '' && hash_equals($workerToken, (string) $request->bearerToken())) {
+        if (AgentWorkerToken::matches($request->bearerToken())) {
             $firstStore = KnowledgeStore::withoutGlobalScope('team')->find($storeIds[0] ?? 0);
 
             return $firstStore?->team_id;
