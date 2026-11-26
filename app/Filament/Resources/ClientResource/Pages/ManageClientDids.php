@@ -9,6 +9,7 @@ use App\Models\CallQueue;
 use App\Models\Extension;
 use App\Models\Orchestration;
 use App\Models\SipTrunk;
+use App\Rules\NoControlCharacters;
 use App\Services\Telephony\ClientDidRouting;
 use BackedEnum;
 use Closure;
@@ -53,6 +54,7 @@ class ManageClientDids extends ManageRelatedRecords
                     ->unique(ignoreRecord: true)
                     ->helperText('Use E.164 format (e.g. +15551234567).'),
                 Forms\Components\TextInput::make('label')
+                    ->rule(new NoControlCharacters)
                     ->maxLength(255)
                     ->placeholder('Primary, Backup, etc.'),
                 Forms\Components\Select::make('sip_trunk_id')

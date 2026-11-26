@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Import\Amtelco;
 
+use App\Rules\NoControlCharacters;
+
 /**
  * Turns one Amtelco directory listing (as converted into
  * nci_directories.json) into directory entry values.
@@ -233,7 +235,7 @@ class DirectoryListingMapper
         }
         foreach ($listing['unlabeled_text'] ?? [] as $line) {
             if (trim((string) $line) !== '') {
-                return trim((string) $line);
+                return (string) NoControlCharacters::strip((string) $line);
             }
         }
 

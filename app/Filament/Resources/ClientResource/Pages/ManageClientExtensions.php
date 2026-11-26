@@ -6,6 +6,7 @@ namespace App\Filament\Resources\ClientResource\Pages;
 
 use App\Filament\Resources\ClientResource;
 use App\Models\AgentPersona;
+use App\Rules\NoControlCharacters;
 use BackedEnum;
 use Filament\Actions;
 use Filament\Forms;
@@ -37,6 +38,9 @@ class ManageClientExtensions extends ManageRelatedRecords
         return $schema
             ->schema([
                 Forms\Components\TextInput::make('number')
+                    // Printed as a dialplan extension and a PJSIP endpoint id.
+                    ->regex('/^[A-Za-z0-9_+*#.-]+$/')
+                    ->validationMessages(['regex' => 'Use only digits, letters and _ + * # . -'])
                     ->required()
                     ->maxLength(20)
                     ->placeholder('e.g. 1001'),
@@ -49,6 +53,7 @@ class ManageClientExtensions extends ManageRelatedRecords
                     ->required()
                     ->live(),
                 Forms\Components\TextInput::make('label')
+                    ->rule(new NoControlCharacters)
                     ->maxLength(255),
                 Forms\Components\Select::make('assignable_id')
                     ->label('AI Agent')

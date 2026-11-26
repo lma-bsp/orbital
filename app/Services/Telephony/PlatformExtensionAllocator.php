@@ -6,6 +6,7 @@ namespace App\Services\Telephony;
 
 use App\Models\Extension;
 use App\Models\User;
+use App\Rules\NoControlCharacters;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -42,7 +43,7 @@ class PlatformExtensionAllocator
                 'team_id' => null,
                 'number' => $number,
                 'type' => 'staff_softphone',
-                'label' => $user->name,
+                'label' => NoControlCharacters::strip($user->name),
                 'assignable_type' => $user->getMorphClass(),
                 'assignable_id' => $user->id,
                 'sip_username' => (string) $number,

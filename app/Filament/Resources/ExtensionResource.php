@@ -6,6 +6,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ExtensionResource\Pages;
 use App\Models\Extension;
+use App\Rules\NoControlCharacters;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -112,10 +113,14 @@ class ExtensionResource extends Resource
         return $schema
             ->schema([
                 Forms\Components\TextInput::make('number')
+                    // Printed as a dialplan extension and a PJSIP endpoint id.
+                    ->regex('/^[A-Za-z0-9_+*#.-]+$/')
+                    ->validationMessages(['regex' => 'Use only digits, letters and _ + * # . -'])
                     ->required()
                     ->maxLength(20)
                     ->placeholder('e.g. 100'),
                 Forms\Components\TextInput::make('label')
+                    ->rule(new NoControlCharacters)
                     ->maxLength(255)
                     ->placeholder('e.g. Front desk Polycom'),
                 Forms\Components\Select::make('type')

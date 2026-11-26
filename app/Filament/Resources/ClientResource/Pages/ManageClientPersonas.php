@@ -6,6 +6,7 @@ namespace App\Filament\Resources\ClientResource\Pages;
 
 use App\Filament\Resources\ClientResource;
 use App\Models\AgentPersona;
+use App\Rules\NoControlCharacters;
 use BackedEnum;
 use Filament\Actions;
 use Filament\Forms;
@@ -43,7 +44,7 @@ class ManageClientPersonas extends ManageRelatedRecords
                         ->pluck('name', 'id'))
                     ->searchable()
                     ->helperText('Optional. When set, unchanged fields inherit from the template.'),
-                Forms\Components\TextInput::make('name')->required()->maxLength(255),
+                Forms\Components\TextInput::make('name')->required()->rule(new NoControlCharacters)->maxLength(255),
                 Forms\Components\TextInput::make('role')->required()->maxLength(255),
                 Forms\Components\Textarea::make('description')->rows(2)->columnSpanFull(),
                 Forms\Components\TextInput::make('voice_id')

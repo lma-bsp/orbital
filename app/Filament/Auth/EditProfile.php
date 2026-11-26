@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Auth;
 
+use App\Rules\NoControlCharacters;
 use Filament\Actions\Action;
 use Filament\Auth\Pages\EditProfile as BaseEditProfile;
 use Filament\Facades\Filament;
@@ -26,7 +27,7 @@ class EditProfile extends BaseEditProfile
     {
         return $schema
             ->components([
-                $this->getNameFormComponent(),
+                $this->getNameFormComponent()->rule(new NoControlCharacters),
                 $this->getEmailFormComponent(),
                 Select::make('timezone')
                     ->label('Timezone')

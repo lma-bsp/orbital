@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Import\Amtelco;
 
+use App\Rules\NoControlCharacters;
+
 /**
  * Turns Amtelco's all-caps client names into title case for the portal:
  * "DR SHAHID SHEIKH'S SERV" -> "Dr Shahid Sheikh's Serv".
@@ -50,7 +52,9 @@ class ClientNameFormatter
 
     public function format(string $name): string
     {
-        $name = trim((string) preg_replace('/\s+/u', ' ', $name));
+        // Spreadsheet cells carry stray line breaks and control bytes;
+        // names go on to dialplan comments, CSVs and logs as one line.
+        $name = trim((string) preg_replace('/\s+/u', ' ', (string) NoControlCharacters::strip($name)));
 
         if ($name === '' || preg_match('/\p{Ll}/u', $name)) {
             return $name;

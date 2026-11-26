@@ -11,6 +11,7 @@ use App\Models\AgentPersona;
 use App\Models\CallQueue;
 use App\Models\Orchestration;
 use App\Models\Team;
+use App\Rules\NoControlCharacters;
 use BackedEnum;
 use Filament\Actions;
 use Filament\Forms;
@@ -70,6 +71,7 @@ class ManageClientCallQueues extends ManageRelatedRecords
     {
         return [
             Forms\Components\TextInput::make('name')
+                ->rule(new NoControlCharacters)
                 ->required()
                 ->maxLength(255),
             Forms\Components\Select::make('agent_group_id')

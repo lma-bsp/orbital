@@ -36,6 +36,8 @@ class ClientNameFormatterTest extends TestCase
             'already mixed case left alone' => ['NCI Doctors  Svc', 'NCI Doctors Svc'],
             'acronym in parentheses' => ['ALCOHOLICS ANONYMOUS (AA)', 'Alcoholics Anonymous (AA)'],
             'place in parentheses' => ['BETH ISRAEL (BROOKLYN)', 'Beth Israel (Brooklyn)'],
+            'line breaks and control bytes' => ["NORTHWELL\r\nHEALTH\0", 'Northwell Health'],
+            'bidi override' => ["ACME\u{202E} CO", 'Acme Co'],
             'empty' => ['   ', ''],
         ];
     }

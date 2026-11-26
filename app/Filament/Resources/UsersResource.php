@@ -8,6 +8,7 @@ use App\Filament\Resources\UsersResource\Pages;
 use App\Filament\Support\RoleBadge;
 use App\Models\Team;
 use App\Models\User;
+use App\Rules\NoControlCharacters;
 use App\Services\Telephony\PlatformExtensionAllocator;
 use BackedEnum;
 use Filament\Actions\BulkAction;
@@ -119,6 +120,7 @@ class UsersResource extends Resource
                                 ->icon('heroicon-o-user')
                                 ->schema([
                                     Forms\Components\TextInput::make('name')
+                                        ->rule(new NoControlCharacters)
                                         ->required()
                                         ->maxLength(255),
                                     Forms\Components\TextInput::make('email')

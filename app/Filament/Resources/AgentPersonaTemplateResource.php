@@ -7,6 +7,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\AgentPersonaTemplateResource\Pages;
 use App\Models\AgentPersona;
 use App\Models\Team;
+use App\Rules\NoControlCharacters;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -89,6 +90,7 @@ class AgentPersonaTemplateResource extends Resource
                         Tab::make('Identity')
                             ->schema([
                                 Forms\Components\TextInput::make('name')
+                                    ->rule(new NoControlCharacters)
                                     ->required()
                                     ->maxLength(255)
                                     ->placeholder('e.g. Warm Receptionist'),

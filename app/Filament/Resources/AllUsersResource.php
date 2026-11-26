@@ -7,6 +7,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\AllUsersResource\Pages;
 use App\Models\Team;
 use App\Models\User;
+use App\Rules\NoControlCharacters;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -138,6 +139,7 @@ class AllUsersResource extends Resource
                                 // Email reset link) so a super-admin can't
                                 // accidentally set a weak one by hand.
                                 Forms\Components\TextInput::make('name')
+                                    ->rule(new NoControlCharacters)
                                     ->required()
                                     ->maxLength(255),
                                 Forms\Components\TextInput::make('email')

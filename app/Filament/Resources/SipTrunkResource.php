@@ -7,6 +7,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\Concerns\PlatformManagedResource;
 use App\Filament\Resources\SipTrunkResource\Pages;
 use App\Models\SipTrunk;
+use App\Rules\NoControlCharacters;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -43,6 +44,7 @@ class SipTrunkResource extends Resource
         return $schema
             ->schema([
                 Forms\Components\TextInput::make('name')
+                    ->rule(new NoControlCharacters)
                     ->required()
                     ->maxLength(255),
                 Forms\Components\Select::make('team_id')
