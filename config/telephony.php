@@ -84,6 +84,14 @@ return [
             'identify_match' => env('LIVEKIT_SIP_IDENTIFY_MATCH', ''),
         ],
 
+        // Bucket key prefix the agent worker gives Egress
+        // (agent-worker/agent.py _start_track_egress). Egress webhooks
+        // naming a file outside {prefix}{room}/ are ignored.
+        'egress' => [
+            // Not env-driven: the worker hardcodes it, so they must change together.
+            'prefix' => 'livekit/',
+        ],
+
         // The agent worker registers under this name (agent-worker/agent.py
         // WorkerOptions.agent_name). A named worker is only sent to rooms
         // that ask for it, so the SIP dispatch rule names it.

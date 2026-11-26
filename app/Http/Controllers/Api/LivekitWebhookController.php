@@ -10,6 +10,8 @@ use App\Jobs\RunPostCallActionsJob;
 use App\Models\CallSessionState;
 use App\Services\Messages\PartialMessagePolicy;
 use App\Services\Messages\SessionMessageWriter;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -37,6 +39,8 @@ use Illuminate\Support\Facades\Log;
  */
 class LivekitWebhookController extends Controller
 {
+    private const CLOCK_LEEWAY_SECONDS = 60;
+
     public function __invoke(Request $request): JsonResponse
     {
         $body = $request->getContent();
@@ -100,42 +104,45 @@ class LivekitWebhookController extends Controller
     }
 
     /**
-     * Verify the webhook's `Authorization: <jwt>` against the
-     * configured LiveKit API secret. The JWT carries a `sha256`
-     * claim equal to the base64-encoded SHA-256 of the raw body.
+     * Verify the webhook's `Authorization: <jwt>` against the active
+     * LiveKit API key/secret: an HS256 signature, `iss` equal to the
+     * API key, a current `exp` (and `nbf` when present), and a `sha256`
+     * claim equal to the base64 SHA-256 of the raw body. Without the
+     * time and issuer checks a captured webhook could be replayed
+     * forever.
      */
     protected function verify(string $body, string $authHeader): bool
     {
-        $secret = (string) config('telephony.livekit.api_secret', env('LIVEKIT_API_SECRET', ''));
-        if ($secret === '' || $authHeader === '') {
+        $mode = (string) config('telephony.livekit.mode', 'local');
+        $creds = (array) config("telephony.livekit.{$mode}", config('telephony.livekit.local', []));
+        $apiKey = (string) ($creds['api_key'] ?? '');
+        $secret = (string) ($creds['api_secret'] ?? '');
+
+        $token = trim((string) preg_replace('/^Bearer\s+/i', '', $authHeader));
+        if ($apiKey === '' || $secret === '' || $token === '') {
             return false;
         }
 
-        $parts = explode('.', $authHeader);
-        if (count($parts) !== 3) {
+        $previousLeeway = JWT::$leeway;
+        try {
+            // Checks the signature, alg, exp and nbf (with leeway).
+            JWT::$leeway = self::CLOCK_LEEWAY_SECONDS;
+            $claims = (array) JWT::decode($token, new Key($secret, 'HS256'));
+        } catch (\Throwable) {
             return false;
+        } finally {
+            JWT::$leeway = $previousLeeway;
         }
-        [$header, $claims, $sig] = $parts;
 
-        // HMAC-SHA256 verification of the JWT signature.
-        $expected = hash_hmac(
-            'sha256',
-            $header.'.'.$claims,
-            $secret,
-            true,
-        );
-        $expectedB64 = rtrim(strtr(base64_encode($expected), '+/', '-_'), '=');
-        if (! hash_equals($expectedB64, $sig)) {
+        if (! isset($claims['exp']) || ! hash_equals($apiKey, (string) ($claims['iss'] ?? ''))) {
             return false;
         }
 
-        // Confirm the body hash matches the JWT's `sha256` claim
-        // so the payload can't be replayed against a different signature.
-        $claimsJson = base64_decode(strtr($claims, '-_', '+/'), true);
-        $decoded = is_string($claimsJson) ? json_decode($claimsJson, true) : null;
-        $claimedHash = is_array($decoded) ? (string) ($decoded['sha256'] ?? '') : '';
-        $bodyHash = rtrim(strtr(base64_encode(hash('sha256', $body, true)), '+/', '-_'), '=');
+        // LiveKit sends standard base64; tolerate the URL-safe form too.
+        $normalise = fn (string $b64) => rtrim(strtr($b64, '-_', '+/'), '=');
+        $claimedHash = $normalise((string) ($claims['sha256'] ?? ''));
+        $bodyHash = $normalise(base64_encode(hash('sha256', $body, true)));
 
-        return $claimedHash !== '' && hash_equals($claimedHash, $bodyHash);
+        return $claimedHash !== '' && hash_equals($bodyHash, $claimedHash);
     }
 }
