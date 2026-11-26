@@ -985,32 +985,14 @@ class SystemHealthService
     {
         $results = [];
 
-        $script = '';
-        foreach ($targets as $key => $target) {
-            $host = escapeshellarg($target['host']);
-            $port = (int) $target['port'];
-            $safeKey = preg_replace('/[^a-z0-9_]/i', '', $key);
-            $timeout = $this->probeTimeoutString();
-
-            if (! empty($target['tls'])) {
-                // Real TLS handshake via openssl s_client. Closes
-                // cleanly after the handshake by feeding empty stdin
-                // with `-no_ign_eof`, so the server logs no half-open
-                // SSL shutdown error. Cheaper than importing PHP's
-                // OpenSSL extension config per-probe.
-                $script .= "(timeout {$timeout} bash -c '</dev/null openssl s_client -connect '{$host}':{$port} -quiet -no_ign_eof >/dev/null 2>&1' && echo {$safeKey}:ok || echo {$safeKey}:fail) & ";
-            } else {
-                // bash /dev/tcp/<host>/<port> is the simplest portable
-                // TCP probe. `timeout` enforces a hard deadline regardless
-                // of DNS or connect state.
-                $script .= "(timeout {$timeout} bash -c 'exec 3<>/dev/tcp/'{$host}'/{$port}' 2>/dev/null && echo {$safeKey}:ok || echo {$safeKey}:fail) & ";
-            }
-        }
-        $script .= 'wait';
+        $valid = array_filter($targets, fn (array $target) => self::isProbeableHost((string) $target['host']));
+        $script = self::buildProbeScript($valid, $this->probeTimeoutString());
 
         $output = [];
         $exitCode = 0;
-        @exec('bash -c '.escapeshellarg($script), $output, $exitCode);
+        if ($valid !== []) {
+            @exec('bash -c '.escapeshellarg($script), $output, $exitCode);
+        }
 
         $statusByKey = [];
         foreach ($output as $line) {
@@ -1025,11 +1007,61 @@ class SystemHealthService
                 'ok' => $ok,
                 'host' => $target['host'],
                 'port' => $target['port'],
-                'error' => $ok ? null : 'unreachable',
+                'error' => $ok ? null : (isset($valid[$key]) ? 'unreachable' : 'invalid host'),
             ];
         }
 
         return $results;
+    }
+
+    /**
+     * A host the probe script may carry: DNS names, IPv4 and IPv6
+     * literals only. Anything else (quotes, `$`, spaces, `;`) is never
+     * handed to the shell.
+     */
+    public static function isProbeableHost(string $host): bool
+    {
+        return $host !== '' && strlen($host) <= 253
+            && preg_match('/^[A-Za-z0-9._:\[\]-]+$/', $host) === 1
+            && ! str_starts_with($host, '-');
+    }
+
+    /**
+     * Build the bash script that probes every target in the background.
+     * Host and port reach the inner `bash -c` as positional arguments
+     * ("$1", "$2"), never as part of its script text, so the inner shell
+     * never re-parses them. Callers filter hosts through
+     * isProbeableHost() first as a second line of defence.
+     *
+     * @param  array<string, array{host: string, port: int, tls?: bool}>  $targets
+     */
+    public static function buildProbeScript(array $targets, string $timeout): string
+    {
+        $script = '';
+        $timeout = escapeshellarg($timeout);
+        foreach ($targets as $key => $target) {
+            $host = escapeshellarg((string) $target['host']);
+            $port = (int) $target['port'];
+            $safeKey = preg_replace('/[^a-z0-9_]/i', '', (string) $key);
+
+            if (! empty($target['tls'])) {
+                // Real TLS handshake via openssl s_client. Closes
+                // cleanly after the handshake by feeding empty stdin
+                // with `-no_ign_eof`, so the server logs no half-open
+                // SSL shutdown error. Cheaper than importing PHP's
+                // OpenSSL extension config per-probe.
+                $inner = escapeshellarg('</dev/null openssl s_client -connect "$1:$2" -quiet -no_ign_eof >/dev/null 2>&1');
+            } else {
+                // bash /dev/tcp/<host>/<port> is the simplest portable
+                // TCP probe. `timeout` enforces a hard deadline regardless
+                // of DNS or connect state.
+                $inner = escapeshellarg('exec 3<>"/dev/tcp/$1/$2"');
+            }
+
+            $script .= "(timeout {$timeout} bash -c {$inner} probe {$host} {$port} 2>/dev/null && echo {$safeKey}:ok || echo {$safeKey}:fail) & ";
+        }
+
+        return $script.'wait';
     }
 
     private function probeTimeoutString(): string
