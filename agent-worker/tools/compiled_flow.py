@@ -103,7 +103,7 @@ def _make_set_field_tool(
 
     @function_tool(name="set_field", description=description)
     async def set_field(ctx: RunContext, key: str, value: str) -> str:
-        logger.info(f"[flow] set_field key={key} value={value!r} session={session_key}")
+        logger.info(f"[flow] set_field key={key} value_len={len(value)} session={session_key}")
 
         # Write-through to Laravel so the operator UI sees captured
         # fields in real time. Non-blocking on failure: if the API is
@@ -138,7 +138,7 @@ def _make_advance_step_tool(
 
     @function_tool(name="advance_step", description=description)
     async def advance_step(ctx: RunContext, decision: bool | None = None, reason: str | None = None) -> str:
-        logger.info(f"[flow] advance_step decision={decision} reason={reason!r} session={session_key}")
+        logger.info(f"[flow] advance_step decision={decision} reason_len={len(reason or "")} session={session_key}")
 
         if session_key:
             try:
@@ -170,7 +170,7 @@ def _make_search_knowledge_tool(
         ),
     )
     async def search_knowledge(ctx: RunContext, query: str, top_k: int = 5) -> str:
-        logger.info(f"[flow] search_knowledge query={query!r} stores={store_ids}")
+        logger.info(f"[flow] search_knowledge query_len={len(query)} stores={store_ids}")
 
         try:
             response = requests.post(
@@ -214,7 +214,7 @@ def _make_lookup_account_tool(schema: dict[str, Any]) -> Callable:
 
     @function_tool(name="lookup_account", description=description)
     async def lookup_account(ctx: RunContext, lookup_value: str) -> str:
-        logger.info(f"[flow] lookup_account value={lookup_value!r}")
+        logger.info(f"[flow] lookup_account value_len={len(lookup_value)}")
         # Phase-D stub: real lookup wiring lands when the account store is built.
         return "Account lookup not yet wired into this tenant's system."
 
@@ -226,7 +226,7 @@ def _make_send_sms_tool(schema: dict[str, Any]) -> Callable:
 
     @function_tool(name="send_sms", description=description)
     async def send_sms(ctx: RunContext, to: str, body: str) -> str:
-        logger.info(f"[flow] send_sms to={to!r} body={body!r}")
+        logger.info(f"[flow] send_sms to_len={len(to)} body_len={len(body)}")
         return "SMS dispatch not yet wired into this tenant's system."
 
 

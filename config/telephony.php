@@ -78,6 +78,18 @@ return [
         'sip' => [
             'host' => env('LIVEKIT_SIP_HOST', 'livekit-sip'),
             'port' => (int) env('LIVEKIT_SIP_PORT', 5069),
+            // Source addresses Asterisk accepts as the `livekit` endpoint
+            // (identify_by=ip). Comma-separated IPs, CIDRs or hostnames;
+            // blank = the host above. List every bridge in HA.
+            'identify_match' => env('LIVEKIT_SIP_IDENTIFY_MATCH', ''),
+        ],
+
+        // Bucket key prefix the agent worker gives Egress
+        // (agent-worker/agent.py _start_track_egress). Egress webhooks
+        // naming a file outside {prefix}{room}/ are ignored.
+        'egress' => [
+            // Not env-driven: the worker hardcodes it, so they must change together.
+            'prefix' => 'livekit/',
         ],
 
         // The agent worker registers under this name (agent-worker/agent.py

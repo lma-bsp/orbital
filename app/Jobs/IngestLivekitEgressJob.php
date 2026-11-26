@@ -112,6 +112,17 @@ class IngestLivekitEgressJob implements ShouldQueue
         if ($storagePath === '') {
             return;
         }
+        if (! $this->isAllowedStoragePath($storagePath)) {
+            // The path is later served from the recordings disk, so a
+            // forged or misrouted webhook must not point a CallRecording
+            // at another object (another call, another client's files).
+            Log::warning('livekit egress: storage path outside the egress prefix', [
+                'egress_id' => $egressId,
+                'room' => $this->egressInfo['room_name'] ?? null,
+            ]);
+
+            return;
+        }
 
         $existing = CallRecording::query()
             ->where('call_log_id', $callLog->id)
@@ -141,6 +152,31 @@ class IngestLivekitEgressJob implements ShouldQueue
                 'ended_at' => $this->egressInfo['ended_at'] ?? null,
             ],
         ]);
+    }
+
+    /**
+     * Only keys under `{prefix}{room_name}/` — the filepath the agent
+     * worker gives Egress — with no traversal, absolute path, URL or
+     * control characters.
+     */
+    protected function isAllowedStoragePath(string $path): bool
+    {
+        $prefix = trim((string) config('telephony.livekit.egress.prefix', 'livekit/'), '/').'/';
+        $room = (string) ($this->egressInfo['room_name'] ?? '');
+
+        if ($prefix === '/' || $room === '' || str_contains($room, '/')) {
+            return false;
+        }
+        if (preg_match('/[\x00-\x1F\x7F\\\\]/', $path) || str_contains($path, '://')) {
+            return false;
+        }
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                return false;
+            }
+        }
+
+        return str_starts_with($path, $prefix.$room.'/');
     }
 
     protected function guessFormat(string $path): string
